@@ -1,0 +1,2 @@
+# Hide vendored repositories from Codex's @ file search.
+/.repos/

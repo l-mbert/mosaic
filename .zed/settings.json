@@ -1,0 +1,157 @@
+{
+	"file_scan_exclusions": [
+		"**/.git",
+		"**/.svn",
+		"**/.hg",
+		"**/.jj",
+		"**/CVS",
+		"**/.DS_Store",
+		"**/Thumbs.db",
+		"**/.classpath",
+		"**/.settings",
+		"**/.repos"
+	],
+	"lsp": {
+		"vtsls": {
+			"binary": {
+				"path": "node_modules/.bin/tsc",
+				"arguments": [
+					"--lsp",
+					"--stdio"
+				]
+			},
+			"settings": {
+				"typescript": {
+					"preferences": {
+						"autoImportFileExcludePatterns": [
+							".repos/**"
+						]
+					}
+				},
+				"javascript": {
+					"preferences": {
+						"autoImportFileExcludePatterns": [
+							".repos/**"
+						]
+					}
+				}
+			}
+		},
+		"oxfmt": {
+			"initialization_options": {
+				"settings": {
+					"fmt.configPath": null
+				}
+			}
+		}
+	},
+	"languages": {
+		"CSS": {
+			"language_servers": [
+				"tailwindcss-language-server"
+			],
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"HTML": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"JSON": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"JSONC": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"Markdown": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"TypeScript": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"TSX": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		},
+		"YAML": {
+			"format_on_save": "on",
+			"formatter": [
+				{
+					"language_server": {
+						"name": "oxfmt"
+					}
+				}
+			],
+			"prettier": {
+				"allowed": false
+			}
+		}
+	}
+}
