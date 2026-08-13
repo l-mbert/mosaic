@@ -1,0 +1,26 @@
+{
+  "name": "@mosaic/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "start": "node scripts/start-electron.mjs",
+    "test": "vp test run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@mosaic/contracts": "workspace:*",
+    "effect": "catalog:",
+    "electron": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "cross-env": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "productName": "Mosaic"
+}

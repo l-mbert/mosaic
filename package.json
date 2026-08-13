@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r build",
-    "dev": "vp run temp-ui#dev"
+    "dev": "vp run --filter @mosaic/desktop --filter @mosaic/renderer --parallel dev",
+    "dev:temp-ui": "vp run temp-ui#dev"
   },
   "devDependencies": {
     "vite-plus": "catalog:"

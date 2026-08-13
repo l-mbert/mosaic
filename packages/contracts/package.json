@@ -1,0 +1,26 @@
+{
+  "name": "@mosaic/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./desktop": "./src/desktop.ts",
+    "./backend": "./src/backend.ts",
+    "./handshake": "./src/handshake.ts",
+    "./rpc-transport": "./src/rpc-transport.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

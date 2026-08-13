@@ -3,10 +3,10 @@ import { configDefaults } from "vite-plus/test/config";
 
 export default defineConfig({
   fmt: {
-    ignorePatterns: [".repos/**"],
+    ignorePatterns: [".repos/**", ".zed/**", "apps/renderer/src/routeTree.gen.ts"],
   },
   lint: {
-    ignorePatterns: [".repos/**"],
+    ignorePatterns: [".repos/**", "apps/renderer/src/routeTree.gen.ts"],
     plugins: ["typescript"],
     options: {
       typeAware: true,
@@ -41,6 +41,15 @@ export default defineConfig({
               ],
             },
           ],
+        },
+      },
+      {
+        files: ["apps/renderer/**"],
+        plugins: ["react", "oxc"],
+        rules: {
+          // TanStack file routes export route configuration beside their component.
+          "react/only-export-components": "off",
+          "react/rules-of-hooks": "error",
         },
       },
     ],

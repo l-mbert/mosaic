@@ -23,7 +23,7 @@ be imported by Mosaic.
 
 - Mosaic ships as one desktop product. Process separation is used for security, lifecycle, and
   fault isolation, not to create independent applications.
-- The renderer is a client of a local engine. It does not own mail synchronization, durable mail
+- The renderer is a client of a local backend. It does not own mail synchronization, durable mail
   state, credentials, provider connections, or plugin execution.
 - Mail behavior remains useful without plugins. Plugins extend the product but do not define its
   core correctness.
@@ -35,7 +35,7 @@ be imported by Mosaic.
   modeled as singleton Effect service tags.
 - Workspace packages exist for stable contracts, public APIs, or meaningful dependency boundaries.
   Internal folders are preferred when a separate package would only add ceremony.
-- Provider-specific complexity stays in provider adapters. The mail engine operates on canonical
+- Provider-specific complexity stays in provider adapters. The mail backend operates on canonical
   capabilities and models.
 - Local-first means that Mosaic has no required Mosaic-hosted backend. Provider network access is
   still necessary for mail synchronization and explicitly granted plugin integrations.
@@ -48,14 +48,14 @@ apps/
   desktop/
     src/
       main/                   # Electron main-process entry and services
-      preload/                # Minimal renderer bridge
-      renderer/               # React product UI
-      utility/                # Local engine utility-process entry
+      preload.ts              # Minimal renderer transport bootstrap
+      utility/                # Local backend utility-process entry
+  renderer/                   # React product UI and file-based routes
 
 packages/
   contracts/                  # Process contracts, RPC groups, wire schemas
   mail-core/                  # Canonical mail model and provider ports
-  local-engine/               # Accounts, sync, search, drafts, outbox, recommendations
+  local-backend/              # Accounts, sync, search, drafts, outbox, recommendations
   storage-sqlite/             # SQLite repositories, migrations, FTS, blob metadata
   providers/
     src/
@@ -81,9 +81,14 @@ tools/
 `apps/temp-ui` remains untouched as an isolated UI reference. Production code does not import from
 it, and it is not part of the shipped application architecture.
 
-`apps/desktop` is the sole product application and may contain several bundled entry points.
-Electron main, preload, renderer, and utility code must not become separate workspace applications
-merely because they run in separate processes.
+`apps/desktop` and `apps/renderer` are separate build workspaces with a clean dependency boundary,
+but they ship as one product. The renderer is built into the desktop distribution and has no
+standalone production artifact. During development, Vite serves it to Electron over loopback. A
+standalone browser mode may be added later; the initial renderer requires Electron's message-port
+bootstrap.
+
+Electron main, preload, and utility remain bundled entry points of `apps/desktop`. Their process
+separation does not justify more workspace packages.
 
 Packages should expose explicit subpaths and avoid broad root barrels. For example, consumers
 should import `@mosaic/providers/gmail` or `@mosaic/plugin-protocol/contributions`, not receive every
@@ -118,7 +123,7 @@ channel names, or generic send/invoke functions.
 The renderer owns presentation and interaction:
 
 - React components and routes;
-- query and mutation hooks over the local engine contract;
+- query and mutation hooks over the local backend contract;
 - transient window state;
 - host rendering for declarative plugin surfaces;
 - accessible, theme-aware UI primitives;
@@ -128,7 +133,7 @@ The renderer never imports provider, storage, plugin-host, or Electron-main impl
 
 ### Utility process
 
-The utility process is Mosaic's local sidecar and authoritative application engine. Electron main
+The utility process is Mosaic's local sidecar and authoritative application backend. Electron main
 starts it with `utilityProcess`, supervises it, and gives it private communication ports. It owns:
 
 - the SQLite connection and migrations;
@@ -187,9 +192,9 @@ The provider port describes capabilities rather than assuming one protocol. It c
 message retrieval, mailbox or label membership, thread information, mutations, draft upload, and
 submission. Unsupported capabilities are represented explicitly.
 
-### `packages/local-engine`
+### `packages/local-backend`
 
-The engine contains application behavior and coordinates the other packages. Its internal folders
+The backend contains application behavior and coordinates the other packages. Its internal folders
 are capability-oriented, for example:
 
 ```text
@@ -205,12 +210,12 @@ src/
 ```
 
 Each capability owns its services, policies, commands, and focused tests. Provider details remain
-behind the provider port, and SQL remains behind repository services. The engine maps internal
+behind the provider port, and SQL remains behind repository services. The backend maps internal
 models to renderer-safe DTOs at the contract handler boundary.
 
 ### `packages/storage-sqlite`
 
-This package implements persistence ports required by the engine:
+This package implements persistence ports required by the backend:
 
 - schema migrations;
 - account, mailbox, thread, message, and draft repositories;
@@ -298,7 +303,7 @@ installation's current grants. Plugin storage is namespaced by installation. Net
 allowlisted and brokered by the host.
 
 Plugin calls have input, output, memory, and execution budgets. Failures are attributed to the
-plugin and do not corrupt the mail engine. Plugin outputs are decoded before entering application
+plugin and do not corrupt the mail backend. Plugin outputs are decoded before entering application
 state. Stored annotations include plugin identity and version so stale derived data can be
 invalidated or recomputed.
 
@@ -309,7 +314,7 @@ a narrow message bridge.
 ### `packages/ui`
 
 This package contains host-owned visual primitives and the renderer for declarative plugin UI. It
-may depend on React, Tailwind, and shadcn, but not on the engine, providers, storage, or Extism.
+may depend on React, Tailwind, and shadcn, but not on the backend, providers, storage, or Extism.
 
 The plugin renderer validates the allowed node tree, resolves actions to protocol invocations, and
 applies Mosaic typography, color, spacing, accessibility, and focus behavior. A plugin cannot
@@ -340,7 +345,7 @@ violated invariants and failures that the caller cannot handle meaningfully.
 Each privileged process has exactly one runtime composition root:
 
 - Electron main composes Electron and operating-system service layers.
-- The utility process composes platform services, storage, provider registry, engine services,
+- The utility process composes platform services, storage, provider registry, backend services,
   plugin runtime, RPC handlers, background workers, logging, and shutdown.
 
 `Layer.mergeAll`, `Layer.provide`, and `Layer.provideMerge` make dependencies visible at these roots.
@@ -366,9 +371,9 @@ them up deterministically.
 
 - `Stream` represents provider delta streams, subscription results, and incremental MIME input.
 - Bounded `Queue` instances serialize account mutations and apply backpressure.
-- `PubSub` fans committed engine changes out to interested in-process consumers.
+- `PubSub` fans committed backend changes out to interested in-process consumers.
 - `Schedule` expresses retry and polling policy with bounded exponential backoff and jitter.
-- Effect `Clock` and `DateTime` are used instead of ambient timers and `Date.now` in engine code.
+- Effect `Clock` and `DateTime` are used instead of ambient timers and `Date.now` in backend code.
 - Per-account work is independent; work within one account preserves the ordering required by its
   provider and outbox.
 
@@ -404,13 +409,39 @@ call endpoint.
 
 The renderer uses:
 
-- TanStack Query for engine-backed queries and mutations;
-- TanStack Router for durable navigation and deep-linkable locations;
-- Zustand for transient window state such as open tabs, pane sizes, selection, and local UI modes;
+- TanStack Query for backend queries and mutations;
+- TanStack Router's file-based routing for durable navigation and deep-linkable locations;
+- Zustand, when transient cross-component window state such as open tabs, pane sizes, selection,
+  and local UI modes is introduced;
 - component state for short-lived interaction details.
 
+The initial desktop shell has no Zustand store. Installing the dependency does not make it a home
+for backend-owned state.
+
+### Initial desktop transport
+
+The initial vertical slice uses an Effect RPC health call to prove the complete process boundary.
+Electron main starts one real utility process and transfers a private `MessagePort` pair between
+that utility and the renderer. Main and preload do not proxy RPC messages.
+
+Before either side accepts an RPC frame, the renderer sends a versioned client hello and the
+utility returns either ready or an incompatibility response. These control messages and the RPC
+wire frames are decoded with Effect Schema; tagged wire objects use `Schema.TaggedStruct`. Protocol
+version 1 is an integer and is rejected explicitly when the two processes disagree.
+
+The utility supervisor permits three restarts after an unexpected exit, with delays of 500, 1,000,
+and 2,000 milliseconds. Its restart budget resets after the utility has remained healthy for 30
+seconds. When the budget is exhausted, the renderer stays open and reports that its local backend is
+unavailable. A recovered utility causes the current window to reload and receive a fresh port.
+
+Only one window is created in the initial slice, while the utility transport accepts multiple
+renderer connections so tabs and multiple windows can be added without replacing the process
+boundary. Production content is served from `mosaic://app/`. Installer and release packaging are
+deferred; the build currently produces the desktop runtime artifacts and copies the renderer into
+them.
+
 Mail records, provider state, plugin installation state, and durable drafts do not live in Zustand.
-Committed engine events invalidate or update precise TanStack Query keys. Large bodies and
+Committed backend events invalidate or update precise TanStack Query keys. Large bodies and
 attachments are streamed or addressed by opaque handles instead of embedded in broad list DTOs.
 
 ## Mail synchronization and persistence
@@ -418,9 +449,9 @@ attachments are streamed or addressed by opaque handles instead of embedded in b
 Synchronization is an offline-first reconciliation process:
 
 1. A provider adapter reads changes after its durable cursor.
-2. The engine normalizes provider data while preserving provider identifiers and semantics.
+2. The backend normalizes provider data while preserving provider identifiers and semantics.
 3. A transaction commits records, memberships, cursor progress, search changes, and derived work.
-4. The engine publishes a committed change notification.
+4. The backend publishes a committed change notification.
 5. Plugin analysis and other derived work run from committed state and record provenance.
 
 User mutations are written to a durable outbox before provider execution. Outbox entries have
@@ -508,9 +539,9 @@ The intended dependency flow is:
 renderer -> contracts, ui, plugin-protocol
 preload  -> contracts
 main     -> contracts, Electron adapters
-utility  -> contracts, local-engine, storage-sqlite, providers, plugin-host-extism
+utility  -> contracts, local-backend, storage-sqlite, providers, plugin-host-extism
 
-local-engine       -> mail-core, plugin-protocol
+local-backend      -> mail-core, plugin-protocol
 storage-sqlite     -> mail-core, plugin-protocol
 providers          -> mail-core
 plugin-sdk         -> plugin-protocol
@@ -521,5 +552,5 @@ first-party plugin -> plugin-sdk
 
 Dependencies do not point back toward the renderer or Electron. `mail-core` does not know about
 SQLite or provider SDKs. `plugin-protocol` does not know about Extism or React. `contracts` does not
-expose internal service implementations. These rules keep the local engine replaceable and make the
+expose internal service implementations. These rules keep the local backend replaceable and make the
 plugin protocol testable independently of its current runtime.
