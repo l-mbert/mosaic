@@ -1,7 +1,12 @@
 import { defineConfig } from "vite-plus";
+import { configDefaults } from "vite-plus/test/config";
 
 export default defineConfig({
+  fmt: {
+    ignorePatterns: [".repos/**"],
+  },
   lint: {
+    ignorePatterns: [".repos/**"],
     plugins: ["typescript"],
     options: {
       typeAware: true,
@@ -39,6 +44,9 @@ export default defineConfig({
         },
       },
     ],
+  },
+  test: {
+    exclude: [...configDefaults.exclude, ".repos/**", "**/.repos/**"],
   },
   run: {
     cache: true,
