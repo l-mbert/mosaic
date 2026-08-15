@@ -1,12 +1,13 @@
 import * as NodePath from "node:path";
 
-import { AttachRenderer, UtilityStarted } from "@mosaic/contracts/desktop";
-import { PROTOCOL_VERSION } from "@mosaic/contracts/handshake";
+import { AttachRenderer, UtilityLifecycleMessage } from "@mosaic/contracts/desktop";
+import { PROTOCOL_VERSION } from "@mosaic/contracts/rpc/handshake";
 import {
   Context,
   Deferred,
   Effect,
   Fiber,
+  FiberSet,
   Layer,
   Option,
   PubSub,
@@ -18,7 +19,13 @@ import {
 import * as Electron from "electron";
 
 import { BACKEND_PORT_CHANNEL } from "../shared/Channels.ts";
-import { UTILITY_HEALTHY_RESET_MS, utilityRestartDecision } from "./UtilityRestartPolicy.ts";
+import { getDatabaseFilename } from "./DatabasePath.ts";
+import {
+  UTILITY_HEALTHY_RESET_MS,
+  UTILITY_BOOT_TIMEOUT_MS,
+  UTILITY_READY_TIMEOUT_MS,
+  utilityRestartDecision,
+} from "./UtilityRestartPolicy.ts";
 
 export type UtilitySupervisorEvent =
   | { readonly _tag: "Ready"; readonly restarted: boolean }
@@ -45,13 +52,12 @@ export class UtilitySupervisor extends Context.Service<
 
 export const make = Effect.fn("UtilitySupervisor.make")(function* () {
   const parentScope = yield* Scope.Scope;
-  const context = yield* Effect.context<never>();
-  const runFork = Effect.runForkWith(context);
+  const runFork = yield* FiberSet.makeRuntime();
   const activeChild = yield* Ref.make<Option.Option<Electron.UtilityProcess>>(Option.none());
   const restartAttempt = yield* Ref.make(0);
   const everReady = yield* Ref.make(false);
   const stopping = yield* Ref.make(false);
-  const initialReady = yield* Deferred.make<void, UtilitySupervisorError>();
+  const initialBooted = yield* Deferred.make<void, UtilitySupervisorError>();
   const events = yield* PubSub.unbounded<UtilitySupervisorEvent>();
   let loopFiber: Fiber.Fiber<void, never> | undefined;
 
@@ -70,6 +76,10 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
             Electron.utilityProcess.fork(utilityEntry, [], {
               serviceName: "Mosaic Local Backend",
               stdio: "inherit",
+              env: {
+                ...process.env,
+                MOSAIC_DATABASE_PATH: getDatabaseFilename(),
+              },
             }),
           catch: (cause) =>
             new UtilitySupervisorError({
@@ -79,33 +89,43 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
         }),
         (child) =>
           Effect.gen(function* () {
+            const booted = yield* Deferred.make<void, UtilitySupervisorError>();
             const ready = yield* Deferred.make<void, UtilitySupervisorError>();
             const exited = yield* Deferred.make<number>();
 
-            const onMessage = (message: unknown) => {
-              runFork(
-                Schema.decodeUnknownEffect(UtilityStarted)(message).pipe(
-                  Effect.flatMap(() => Deferred.succeed(ready, undefined)),
-                  Effect.catch((error) =>
-                    Effect.logWarning("Ignoring an invalid utility control message.").pipe(
-                      Effect.annotateLogs({ error: String(error) }),
-                    ),
+            const onMessage = (message: UtilityLifecycleMessage) => {
+              const lifecycle = Schema.decodeUnknownResult(UtilityLifecycleMessage)(message);
+              if (Result.isFailure(lifecycle)) {
+                runFork(
+                  Effect.logWarning("Ignoring an invalid utility control message.").pipe(
+                    Effect.annotateLogs({ error: lifecycle.failure.message }),
                   ),
-                ),
+                );
+                return;
+              }
+              Deferred.doneUnsafe(
+                lifecycle.success._tag === "MosaicUtilityBooted" ? booted : ready,
+                Effect.void,
               );
             };
             const onExit = (code: number) => {
-              runFork(
-                Effect.all([
-                  Deferred.fail(
-                    ready,
-                    new UtilitySupervisorError({
-                      message: `The Mosaic utility process exited before it became ready (code ${code}).`,
-                    }),
-                  ),
-                  Deferred.succeed(exited, code),
-                ]).pipe(Effect.asVoid),
+              Deferred.doneUnsafe(
+                booted,
+                Effect.fail(
+                  new UtilitySupervisorError({
+                    message: `The Mosaic utility process exited before it booted (code ${code}).`,
+                  }),
+                ),
               );
+              Deferred.doneUnsafe(
+                ready,
+                Effect.fail(
+                  new UtilitySupervisorError({
+                    message: `The Mosaic utility process exited before it became ready (code ${code}).`,
+                  }),
+                ),
+              );
+              Deferred.doneUnsafe(exited, Effect.succeed(code));
             };
 
             child.on("message", onMessage);
@@ -118,13 +138,32 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
               }),
             );
 
-            yield* Deferred.await(ready);
+            yield* Deferred.await(booted).pipe(
+              Effect.timeoutOrElse({
+                duration: UTILITY_BOOT_TIMEOUT_MS,
+                orElse: () =>
+                  Effect.fail(
+                    new UtilitySupervisorError({
+                      message: `The Mosaic utility process did not boot within ${UTILITY_BOOT_TIMEOUT_MS}ms.`,
+                    }),
+                  ),
+              }),
+            );
+            yield* Deferred.succeed(initialBooted, undefined);
+
+            yield* Deferred.await(ready).pipe(
+              Effect.timeoutOrElse({
+                duration: UTILITY_READY_TIMEOUT_MS,
+                orElse: () =>
+                  Effect.fail(
+                    new UtilitySupervisorError({
+                      message: `The Mosaic utility process did not become ready within ${UTILITY_READY_TIMEOUT_MS}ms after booting.`,
+                    }),
+                  ),
+              }),
+            );
             yield* Ref.set(activeChild, Option.some(child));
             const restarted = yield* Ref.getAndSet(everReady, true);
-
-            if (!restarted) {
-              yield* Deferred.succeed(initialReady, undefined);
-            }
 
             yield* PubSub.publish(events, { _tag: "Ready", restarted });
             yield* Effect.logInfo("Mosaic utility process is ready.").pipe(
@@ -175,7 +214,7 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
           const error = new UtilitySupervisorError({
             message: "The Mosaic utility process exhausted its restart budget.",
           });
-          yield* Deferred.fail(initialReady, error);
+          yield* Deferred.fail(initialBooted, error);
           yield* PubSub.publish(events, { _tag: "Exhausted" });
           yield* Effect.logError(error.message);
           return;
@@ -198,7 +237,7 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
       loopFiber = yield* Effect.forkIn(runLoop(), parentScope);
     }
 
-    return yield* Deferred.await(initialReady);
+    return yield* Deferred.await(initialBooted);
   });
 
   const connect = Effect.fn("UtilitySupervisor.connect")(function* (

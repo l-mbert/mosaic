@@ -112,6 +112,18 @@ const dealDesk: Plugin = {
       </section>
     ) : null,
 
+  peek: (message) =>
+    message.deal ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex shrink-0 items-center gap-1.5">
+          <PluginDot tone="deal" />
+          <span className="text-xs font-medium">{message.deal.account}</span>
+        </span>
+        <span className="shrink-0 text-xs text-tone-attention">{message.deal.stage}</span>
+        <Fact label="Value" value={message.deal.value} />
+      </div>
+    ) : null,
+
   composerActions: (message) =>
     message.deal ? [{ label: "Attach revised quote", primary: true }] : null,
 
@@ -144,6 +156,26 @@ const esign: Plugin = {
           />
         ))}
       </span>
+    ) : null,
+
+  peek: (message) =>
+    message.envelope ? (
+      <div className="flex items-center gap-2">
+        <span className="flex shrink-0 items-center gap-0.5">
+          {Array.from({ length: message.envelope.total }, (_, i) => (
+            <span
+              key={i}
+              className={cn(
+                "h-1 w-3 rounded-full",
+                i < message.envelope!.signed ? "bg-tone-esign" : "bg-border",
+              )}
+            />
+          ))}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          Waiting on {message.envelope.waitingOn}
+        </span>
+      </div>
     ) : null,
 
   // The mail body is boilerplate, so this stands in for it entirely.
@@ -201,6 +233,16 @@ const calendar: Plugin = {
       </span>
     ) : null,
 
+  peek: (message) =>
+    message.invite ? (
+      <div className="flex items-center gap-2 text-xs">
+        <CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">
+          {message.invite.when} · {message.invite.duration} · {message.invite.guests} guests
+        </span>
+      </div>
+    ) : null,
+
   readerReplace: (message) =>
     message.invite ? (
       <Panel>
@@ -227,6 +269,18 @@ const travel: Plugin = {
   listBadge: (message) =>
     message.trip ? (
       <span className="shrink-0 text-xs text-muted-foreground">{message.trip.route}</span>
+    ) : null,
+
+  peek: (message) =>
+    message.trip ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex shrink-0 items-center gap-1.5">
+          <PlaneIcon className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">{message.trip.route}</span>
+        </span>
+        <Fact label="Departs" value={message.trip.depart} />
+        <Fact label="Seat" value={message.trip.seat} />
+      </div>
     ) : null,
 
   // Above, not instead: the airline's mail still has the fare rules in it.
@@ -267,6 +321,18 @@ const digest: Plugin = {
     ) : null,
 
   folderCanvas: (folderId) => (folderId === "newsletters" ? <NewslettersFolder /> : null),
+
+  peek: (message) =>
+    message.digest ? (
+      <ul role="list" className="flex flex-col gap-1">
+        {message.digest.items.slice(0, 3).map((item) => (
+          <li key={item.title} className="flex items-baseline gap-2 text-xs">
+            <span className="w-20 shrink-0 truncate text-muted-foreground">{item.source}</span>
+            <span className="min-w-0 flex-1 truncate">{item.title}</span>
+          </li>
+        ))}
+      </ul>
+    ) : null,
 
   readerReplace: (message) =>
     message.digest ? (
@@ -311,7 +377,7 @@ const assistant: Plugin = {
 
 /* -------------------------------------------------------------- registry -- */
 
-export const registry: Record<PluginId, Plugin> = {
+export const registry = {
   core,
   "deal-desk": dealDesk,
   esign,
@@ -319,7 +385,7 @@ export const registry: Record<PluginId, Plugin> = {
   travel,
   digest,
   assistant,
-};
+} satisfies Record<PluginId, Plugin>;
 
 export const allPlugins = Object.values(registry);
 
@@ -332,6 +398,18 @@ export function collect(
     const node = plugin[slot]?.(message);
     return node ? [{ plugin, node }] : [];
   });
+}
+
+/**
+ * What the hover peek should show: a plugin's reduced form if it has one, and
+ * otherwise whatever it already renders in the reader.
+ */
+export function peekPanel(message: Message): ReactNode {
+  for (const plugin of allPlugins) {
+    const reduced = plugin.peek?.(message);
+    if (reduced) return reduced;
+  }
+  return replacement(message)?.node ?? collect("readerAbove", message)[0]?.node ?? null;
 }
 
 /** Only one plugin may stand in for the mail body — first one wins. */

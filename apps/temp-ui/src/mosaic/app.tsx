@@ -4,8 +4,10 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Composer } from "./components/composer";
 import { MailPage } from "./components/mail-page";
+import { PeekCard } from "./components/peek";
 import { Reader } from "./components/reader";
 import { TabBar } from "./components/tab-bar";
+import { usePeek } from "./components/use-peek";
 import { initialTabs, messages } from "./data";
 import { registry, replacement } from "./plugins";
 import type { Message, Tab } from "./types";
@@ -24,11 +26,12 @@ function useShortcuts({
 }) {
   useEffect(() => {
     function handle(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
+      const target = event.target;
       const typing =
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable === true;
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable === true);
       if (typing || disabled) return;
 
       if (event.key === "j" || event.key === "ArrowDown") {
@@ -55,8 +58,16 @@ export function MosaicApp() {
   const [activeTabId, setActiveTabId] = useState(initialTabs[0].id);
   const [highlightedId, setHighlightedId] = useState(messages[0].id);
   const [composerOpen, setComposerOpen] = useState(false);
+  const { peek, enter: peekEnter, leave: peekLeave } = usePeek();
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+
+  /*
+   * Switching tabs unmounts whatever the pointer was over without ever firing
+   * its mouseleave, so a peek that was mid-delay would land on top of the new
+   * tab. Close it whenever the tab changes.
+   */
+  useEffect(() => peekLeave(), [activeTabId, peekLeave]);
   const openMessage =
     activeTab.kind === "message"
       ? (messages.find((message) => message.id === activeTab.messageId) ?? null)
@@ -120,9 +131,26 @@ export function MosaicApp() {
             const home = tabs.find((tab) => tab.kind === "mailbox");
             if (home) setActiveTabId(home.id);
           }}
+          /*
+           * Only a message tab has something to preview. A folder tab's label
+           * already says its name and count, so a card would just repeat it.
+           */
+          onPeek={(tab, element) => {
+            const message = messages.find((m) => m.id === tab.messageId);
+            if (message) {
+              peekEnter(message, {
+                kind: "element",
+                element,
+                width: Math.round(element.getBoundingClientRect().width),
+              });
+            }
+          }}
+          onPeekLeave={peekLeave}
         />
 
-        <main className="mx-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-background shadow-xs ring-1 ring-black/5">
+        {/* Positioned, so a composer that floats can anchor to the surface it
+            belongs to rather than to the window. */}
+        <main className="relative mx-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-background shadow-xs ring-1 ring-black/5">
           {activeTab.kind === "canvas" ? (
             (canvas ?? (
               <Empty>
@@ -153,9 +181,15 @@ export function MosaicApp() {
               onHighlight={setHighlightedId}
               onOpen={openMessageTab}
               onOpenFolder={openTab}
+              onPeek={(message, event) =>
+                peekEnter(message, { kind: "pointer", x: event.clientX, y: event.clientY })
+              }
+              onPeekLeave={peekLeave}
             />
           )}
         </main>
+
+        <PeekCard peek={peek} onClose={peekLeave} />
       </div>
     </TooltipProvider>
   );

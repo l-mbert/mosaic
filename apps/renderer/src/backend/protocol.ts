@@ -1,8 +1,7 @@
-import { BackendRpcServerFrame } from "@mosaic/contracts/rpc-transport";
+import { BackendRpcServerFrame } from "@mosaic/contracts/rpc/transport";
 import { Effect, Schema } from "effect";
 import * as RpcClient from "effect/unstable/rpc/RpcClient";
 import { RpcClientDefect, RpcClientError } from "effect/unstable/rpc/RpcClientError";
-import type { FromServerEncoded } from "effect/unstable/rpc/RpcMessage";
 
 const protocolError = (message: string, cause?: unknown) =>
   new RpcClientError({
@@ -30,15 +29,16 @@ export const makeMessagePortClientProtocol = (port: MessagePort) =>
       };
 
       const onMessage = (event: MessageEvent<unknown>) => {
-        if (clientId === undefined) {
+        const currentClientId = clientId;
+        if (currentClientId === undefined) {
           return;
         }
 
         runFork(
           Schema.decodeUnknownEffect(BackendRpcServerFrame)(event.data).pipe(
-            Effect.flatMap((message) => writeResponse(clientId!, message as FromServerEncoded)),
+            Effect.flatMap((message) => writeResponse(currentClientId, message)),
             Effect.catch((error) =>
-              writeResponse(clientId!, {
+              writeResponse(currentClientId, {
                 _tag: "ClientProtocolError",
                 error: protocolError("The utility process sent an invalid RPC frame.", error),
               }),

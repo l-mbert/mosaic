@@ -47,23 +47,27 @@ apps/
   temp-ui/                       # Existing UI reference; not a production boundary
   desktop/
     src/
-      main/                   # Electron main-process entry and services
-      preload.ts              # Minimal renderer transport bootstrap
-      utility/                # Local backend utility-process entry
+      main/                      # Electron main-process entry and services
+      persistence/
+        Services/                # Repository APIs and storage-only models
+        Layers/                  # SQLite implementations, projections, and hydration
+        Migrations/              # Ordered schema and data migrations
+        RuntimeLayer.ts          # Repository layer composition
+      rpc/
+        Handlers/                # Capability-specific RPC handlers
+        Handlers.ts              # RPC handler composition
+        MailHtml.ts              # Stored-to-wire body sanitization
+        MessagePortServerProtocol.ts
+        Server.ts                # Scoped Effect RPC server lifecycle
+      provider/
+        Services/                # Provider registry and capability APIs
+        Layers/                  # Gmail, Graph, and IMAP implementations
+      utility.ts                 # Utility-process composition root
+      preload.ts                 # Minimal renderer transport bootstrap
   renderer/                   # React product UI and file-based routes
 
 packages/
   contracts/                  # Process contracts, RPC groups, wire schemas
-  mail-core/                  # Canonical mail model and provider ports
-  local-backend/              # Accounts, sync, search, drafts, outbox, recommendations
-  storage-sqlite/             # SQLite repositories, migrations, FTS, blob metadata
-  providers/
-    src/
-      driver.ts               # Provider driver SPI
-      registry.ts             # Provider driver and live-instance lookup
-      gmail/                  # Gmail API adapter
-      graph/                  # Microsoft Graph adapter
-      imap/                   # Generic IMAP and SMTP adapter
   plugin-protocol/            # Manifest, capabilities, contributions, UI protocol
   plugin-sdk/                 # Public plugin authoring API
   plugin-host-extism/         # Extism implementation of the plugin runtime
@@ -87,12 +91,15 @@ standalone production artifact. During development, Vite serves it to Electron o
 standalone browser mode may be added later; the initial renderer requires Electron's message-port
 bootstrap.
 
-Electron main, preload, and utility remain bundled entry points of `apps/desktop`. Their process
-separation does not justify more workspace packages.
+Electron main, preload, seed, and utility remain bundled entry points of `apps/desktop`. Their
+process separation does not justify more workspace packages. Backend code is organized as
+capabilities inside the app, following t3code's `src/<capability>/Services` and
+`src/<capability>/Layers` convention. Small capabilities may keep a service and its layer in one
+module; the folders are used when they clarify a real interface-to-implementation split.
 
-Packages should expose explicit subpaths and avoid broad root barrels. For example, consumers
-should import `@mosaic/providers/gmail` or `@mosaic/plugin-protocol/contributions`, not receive every
-provider or protocol type through one index.
+Packages should expose explicit subpaths and avoid broad root barrels. For example, mail consumers
+import `@mosaic/contracts/backend/mail`, while the RPC runtime imports the composed group from
+`@mosaic/contracts/backend`. Handshake and transport frames live under `@mosaic/contracts/rpc/*`.
 
 ## Runtime boundaries
 
@@ -136,7 +143,7 @@ The renderer never imports provider, storage, plugin-host, or Electron-main impl
 The utility process is Mosaic's local sidecar and authoritative application backend. Electron main
 starts it with `utilityProcess`, supervises it, and gives it private communication ports. It owns:
 
-- the SQLite connection and migrations;
+- the SQLite connections and migrations;
 - provider connections and account sessions;
 - synchronization, indexing, search, and the mutation outbox;
 - MIME parsing and attachment storage;
@@ -148,7 +155,7 @@ starts it with `utilityProcess`, supervises it, and gives it private communicati
 The utility process is not a localhost HTTP server. A private message-port transport avoids port
 discovery, local network authorization, CORS, and an unnecessary public listening surface.
 
-## Package responsibilities
+## Package and capability responsibilities
 
 ### `packages/contracts`
 
@@ -165,14 +172,55 @@ Contracts are transport-independent. Electron message ports are one transport im
 part of the contract itself. The package contains schemas and small derived helpers, but no
 repositories, Effect layers with operating-system dependencies, or application orchestration.
 
-Effect Schema is authoritative for process, provider, persistence, and plugin boundaries. ArkType
+The package is organized by process boundary and capability:
+
+- `backend/Backend.ts` only composes the complete backend RPC group;
+- `backend/HealthCheck.ts` owns the health result and RPC;
+- `backend/mail/` colocates account, mailbox, message, thread, and thread-search schemas with the
+  RPCs that use them;
+- `desktop/Lifecycle.ts` owns Electron main-to-utility lifecycle messages;
+- `rpc/Handshake.ts` and `rpc/Transport.ts` own protocol negotiation and wire frames.
+
+Small shared mail primitives such as branded identifiers, errors, pagination limits, and thread
+scopes have focused modules inside `backend/mail`. There is no package-wide model or RPC grab bag.
+
+Effect Schema is authoritative for process, provider, database, and plugin boundaries. ArkType
 may be used for renderer-local forms and view-specific validation, but it must not duplicate a wire
 schema already owned by `packages/contracts` or `packages/plugin-protocol`.
 
-### `packages/mail-core`
+### `apps/desktop/src/persistence`
 
-This package defines Mosaic's canonical mail language and provider-facing ports. It contains no
-provider SDK and no Electron code.
+Persistence is the utility process's durable-state boundary. It owns the SQLite client and
+migrations, repository service contracts, SQL implementations, database projections, fixtures,
+seeding, and local full-text indexing. It is an app-internal capability, not a workspace package or
+a generic home for backend behavior.
+
+Its structure follows one rule:
+
+- `Services/` defines repository APIs, storage-only models, and `Context.Service` tags;
+- `Layers/` contains SQLite implementations and implementation-only helpers;
+- `Migrations/` contains ordered schema migrations and bounded data backfills;
+- the capability root contains shared repository errors, page-size policy, fixtures, seeding, and
+  `RuntimeLayer.ts`.
+
+The repository services are split by durable capability: accounts, mailboxes, threads, and thread
+search. `ThreadHydration` assembles normalized message rows into stored thread details, while
+`ThreadSummaries` maps the database summary projection. `ThreadSearch` belongs here while search is
+a direct SQLite FTS projection. If search later coordinates local, provider, and plugin results or
+owns ranking policy, that orchestration becomes a separate top-level `search` capability which
+depends on the persistence service.
+
+Wire-visible identifiers and DTOs live in `packages/contracts`. Storage-only records such as
+provider account rows, unsanitized message bodies, and fixture aggregates remain in persistence.
+HTML sanitization and stored-to-wire conversion happen at the RPC boundary. This prevents
+contracts from exposing database concerns without introducing a generic model package.
+
+Persistence records extend their renderer-safe contract shape instead of redefining shared fields.
+For example, `StoredAccount` extends `AccountSummary` with provider identity and timestamps, while
+`StoredMailbox` extends `MailboxSummary` with its provider mailbox identifier. `StoredThread`,
+`StoredMailMessage`, and `StoredAttachment` likewise own provider identifiers, raw blob hashes, and
+untrusted HTML. The RPC success schemas project these stored records onto renderer-safe contracts;
+the thread handler only transforms the untrusted HTML that requires application policy.
 
 The canonical model must distinguish:
 
@@ -188,42 +236,10 @@ The canonical model must distinguish:
 Identifiers should be schema-branded so that account, message, thread, view, and plugin IDs cannot
 be mixed accidentally.
 
-The provider port describes capabilities rather than assuming one protocol. It covers delta sync,
-message retrieval, mailbox or label membership, thread information, mutations, draft upload, and
-submission. Unsupported capabilities are represented explicitly.
-
-### `packages/local-backend`
-
-The backend contains application behavior and coordinates the other packages. Its internal folders
-are capability-oriented, for example:
-
-```text
-src/
-  accounts/
-  mail/
-  sync/
-  drafts/
-  outbox/
-  search/
-  recommendations/
-  plugins/
-```
-
-Each capability owns its services, policies, commands, and focused tests. Provider details remain
-behind the provider port, and SQL remains behind repository services. The backend maps internal
-models to renderer-safe DTOs at the contract handler boundary.
-
-### `packages/storage-sqlite`
-
-This package implements persistence ports required by the backend:
-
-- schema migrations;
-- account, mailbox, thread, message, and draft repositories;
-- synchronization checkpoints and provider cursors;
-- a durable mutation outbox;
-- FTS5 indexes;
-- plugin installations, grants, settings, annotations, and namespaced key-value data;
-- content-addressed blob metadata for raw messages and attachments.
+Future backend behavior is added as sibling capabilities such as `sync`, `drafts`, `outbox`,
+`recommendations`, and `plugins`, not collected in a generic backend package. Each capability
+owns its services, policies, layers, composition, and focused tests. The RPC handler boundary maps
+internal models to renderer-safe DTOs.
 
 SQLite is the durable source of truth and has one owning process. Raw RFC822 content and large
 attachments should live in a content-addressed file store rather than large database rows. SQLite
@@ -233,13 +249,41 @@ Repository services return domain models and domain errors. Callers do not recei
 errors. Transactions define the atomic boundary between normalized mail state, sync cursors,
 indexes, and emitted change notifications.
 
-### `packages/providers`
+SQLite enforces account ownership across threads, messages, mailboxes, and message membership with
+foreign keys and integrity triggers. The same triggers prevent mailbox cycles and reject values
+which SQLite's type affinity would otherwise coerce, including fractional attachment sizes and
+non-canonical UTC timestamps. Stored Mosaic identifiers and integer sizes use the same upper bounds
+as their renderer-safe schemas. Repository row schemas mirror those stored invariants. Multi-query
+thread hydration, summary pagination, and search execute in short transactions on a dedicated
+read-only connection, so each result comes from one coherent snapshot without reserving SQLite's
+single writer slot.
 
-All built-in mail providers live in one package. Gmail, Graph, and IMAP are implementation folders,
-not independent workspace packages. This keeps the common driver SPI, registry behavior, fixtures,
-and conformance tests together while preserving explicit subpath imports.
+Full-text search is a database-owned projection. Each message has one relational `message_search`
+row, and an external-content FTS5 table indexes that row. Triggers maintain both layers when a
+message or its addresses change, while cascading ownership removes search data with the message.
+`messages.search_body` is the sole body source for the search projection. Every message writer
+stores normalized searchable text alongside the source body, preferring plain text and otherwise
+extracting text from HTML. Data migrations backfill that same canonical representation in bounded
+batches; SQL triggers never fall back to indexing raw HTML. Search still joins indexed rows back
+through the owning message and thread summary before returning results.
 
-The package uses two distinct abstractions:
+### `apps/desktop/src/rpc`
+
+The RPC capability implements the utility side of `packages/contracts`. It owns the scoped RPC
+server lifecycle, message-port protocol, method handlers, internal-to-wire model conversion, error
+translation, and mail HTML sanitization. Handlers depend directly on the narrow persistence
+service they use; there is no aggregate query facade that merely forwards repository methods.
+
+RPC code does not own SQL, provider behavior, or durable policy. Its job is to validate and map the
+process boundary, then delegate to the appropriate backend capability.
+
+### `apps/desktop/src/provider`
+
+All built-in mail providers live in the desktop provider capability. Gmail, Graph, and IMAP are
+implementation modules, not independent workspace packages. `Services/` owns the registry APIs;
+`Layers/` owns adapters, live registry behavior, fixtures, and conformance tests.
+
+The capability uses two distinct abstractions:
 
 - `MailProviderDriver` is a plain registered value containing static metadata, a configuration
   schema, and a scoped `create` function.
@@ -325,16 +369,20 @@ inject arbitrary React nodes into the main renderer.
 Effect is the default application architecture in Electron main and the utility process. It is not
 required for ordinary React rendering or local component state.
 
-### Service modules
+### Services and layers
 
-Infrastructure and application capabilities use the same module shape:
+Larger capabilities use the same split as t3code's server app:
 
-- a small interface exposed through `Context.Service`;
-- a `make` effect or constructor;
-- a dependency-preserving `layerNoDeps` when useful;
-- a composed `layer` for the normal runtime;
-- schema-tagged expected errors;
-- named operations created with `Effect.fn("Service.operation")`.
+- `src/<capability>/Services/` owns schemas, small interfaces, and `Context.Service` tags;
+- `src/<capability>/Layers/` owns live implementations and their implementation-only helpers;
+- `src/<capability>/RuntimeLayer.ts` composes the normal capability layer when composition is
+  non-trivial;
+- errors and policies shared by several services stay at the capability root;
+- smaller services may colocate their tag, constructor, and layer in one module.
+
+`Services` does not mean a separately publishable package, and `Layers` does not become a global
+infrastructure bucket. Both remain inside the capability whose language they implement. Service
+operations use `Effect.fn("Service.operation")`; expected failures use schema-tagged errors.
 
 Service methods expose domain errors. Raw promise rejections, native exceptions, provider errors,
 and SQL errors are translated at the adapter that understands them. Defects are reserved for
@@ -345,8 +393,8 @@ violated invariants and failures that the caller cannot handle meaningfully.
 Each privileged process has exactly one runtime composition root:
 
 - Electron main composes Electron and operating-system service layers.
-- The utility process composes platform services, storage, provider registry, backend services,
-  plugin runtime, RPC handlers, background workers, logging, and shutdown.
+- The utility process composes platform services, persistence layers, capability runtime layers,
+  provider registry, plugin runtime, RPC handlers, background workers, logging, and shutdown.
 
 `Layer.mergeAll`, `Layer.provide`, and `Layer.provideMerge` make dependencies visible at these roots.
 Application modules must not call `Effect.runPromise` internally. Imperative Electron callbacks and
@@ -430,9 +478,12 @@ wire frames are decoded with Effect Schema; tagged wire objects use `Schema.Tagg
 version 1 is an integer and is rejected explicitly when the two processes disagree.
 
 The utility supervisor permits three restarts after an unexpected exit, with delays of 500, 1,000,
-and 2,000 milliseconds. Its restart budget resets after the utility has remained healthy for 30
-seconds. When the budget is exhausted, the renderer stays open and reports that its local backend is
-unavailable. A recovered utility causes the current window to reload and receive a fresh port.
+and 2,000 milliseconds. Startup has two signals: a launched process has 10 seconds to acknowledge
+that its entry point booted, then reports backend readiness only after migrations and RPC startup
+finish. Database work has no destructive wall-clock timeout; an exit still consumes the bounded
+restart budget. The budget resets after the utility has remained healthy for 30 seconds. When the
+budget is exhausted, the renderer stays open and reports that its local backend is unavailable. A
+ready or recovered utility causes the current window to reload and receive a fresh port.
 
 Only one window is created in the initial slice, while the utility transport accepts multiple
 renderer connections so tabs and multiple windows can be added without replacing the process
@@ -440,11 +491,19 @@ boundary. Production content is served from `mosaic://app/`. Installer and relea
 deferred; the build currently produces the desktop runtime artifacts and copies the renderer into
 them.
 
+Each renderer connection has a bounded inbound frame queue and a bounded set of outstanding request
+IDs. Pending handshakes are scoped and time out before they can retain abandoned ports. Request
+payloads are decoded against the selected RPC's schema before entering the queue; identifiers,
+queries, headers, and transport metadata have explicit bounds. Invalid frames and limit violations
+cause disconnection, and the RPC server applies a global concurrency limit. This keeps
+renderer traffic from retaining unbounded input or creating an unbounded number of fibers and
+concurrent backend requests.
+
 Mail records, provider state, plugin installation state, and durable drafts do not live in Zustand.
 Committed backend events invalidate or update precise TanStack Query keys. Large bodies and
 attachments are streamed or addressed by opaque handles instead of embedded in broad list DTOs.
 
-## Mail synchronization and persistence
+## Mail synchronization and local storage
 
 Synchronization is an offline-first reconciliation process:
 
@@ -521,7 +580,8 @@ Testing follows the same seams as the architecture:
 - `TestClock` controls synchronization schedules, retries, snoozes, and recommendation expiry;
 - provider conformance tests run the same behavioral contract against Gmail, Graph, and IMAP
   adapters using fixtures or controlled fakes;
-- storage tests use temporary SQLite databases and verify transaction and migration behavior;
+- persistence tests use in-memory or temporary SQLite databases and verify repository,
+  transaction, search, and migration behavior;
 - plugin conformance tests run identical protocol cases against the in-process test runtime and the
   Extism runtime;
 - contract tests encode and decode every RPC and plugin message at the boundary;
@@ -539,18 +599,19 @@ The intended dependency flow is:
 renderer -> contracts, ui, plugin-protocol
 preload  -> contracts
 main     -> contracts, Electron adapters
-utility  -> contracts, local-backend, storage-sqlite, providers, plugin-host-extism
+utility  -> contracts, internal desktop capabilities, plugin-host-extism
 
-local-backend      -> mail-core, plugin-protocol
-storage-sqlite     -> mail-core, plugin-protocol
-providers          -> mail-core
+persistence Services -> contracts
+persistence Layers   -> persistence Services, contracts
+rpc                  -> contracts, persistence Services
+provider             -> persistence Services, contracts
 plugin-sdk         -> plugin-protocol
 plugin-host-extism -> plugin-protocol
 ui                 -> plugin-protocol
 first-party plugin -> plugin-sdk
 ```
 
-Dependencies do not point back toward the renderer or Electron. `mail-core` does not know about
-SQLite or provider SDKs. `plugin-protocol` does not know about Extism or React. `contracts` does not
-expose internal service implementations. These rules keep the local backend replaceable and make the
-plugin protocol testable independently of its current runtime.
+Dependencies do not point back toward the renderer or Electron. Service modules do not import their
+live layers. `plugin-protocol` does not know about Extism or React. `contracts` does not expose
+internal service implementations. These rules preserve testable boundaries without turning every
+internal boundary into a workspace package.

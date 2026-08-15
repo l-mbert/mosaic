@@ -2,7 +2,7 @@ import {
   ClientHello,
   PROTOCOL_VERSION,
   UtilityHandshakeResponse,
-} from "@mosaic/contracts/handshake";
+} from "@mosaic/contracts/rpc/handshake";
 import { Schema } from "effect";
 
 const BACKEND_PORT_MESSAGE = "MosaicBackendPort";
@@ -30,7 +30,7 @@ const withTimeout = <Value>(promise: Promise<Value>, message: string) =>
         window.clearTimeout(timeout);
         resolve(value);
       },
-      (error: unknown) => {
+      (error) => {
         window.clearTimeout(timeout);
         reject(error);
       },

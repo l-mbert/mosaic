@@ -1,6 +1,33 @@
+import { readFileSync } from "node:fs";
+
 import { defineConfig } from "vite-plus";
 
 const launchElectronAfterPack = process.env.MOSAIC_DESKTOP_DEV === "1";
+const rawSqlPlugin = {
+  name: "mosaic-raw-sql",
+  load(id: string) {
+    if (!id.endsWith(".sql?raw")) return null;
+    const filename = id.slice(0, -"?raw".length);
+    return `export default ${JSON.stringify(readFileSync(filename, "utf8"))};`;
+  },
+};
+
+const mainPackConfig = {
+  format: "cjs" as const,
+  outDir: "dist",
+  sourcemap: true,
+  outExtensions: () => ({ js: ".cjs" }),
+  entry: ["src/main.ts"],
+  clean: true,
+  deps: {
+    alwaysBundle: (id: string) => id.startsWith("@mosaic/"),
+  },
+};
+
+const mainPackConfigWithLaunch = {
+  ...mainPackConfig,
+  onSuccess: "node scripts/dev-electron.mjs",
+};
 
 export default defineConfig({
   run: {
@@ -18,18 +45,7 @@ export default defineConfig({
     },
   },
   pack: [
-    {
-      format: "cjs",
-      outDir: "dist",
-      sourcemap: true,
-      outExtensions: () => ({ js: ".cjs" }),
-      entry: ["src/main.ts"],
-      clean: true,
-      deps: {
-        alwaysBundle: (id) => id.startsWith("@mosaic/"),
-      },
-      ...(launchElectronAfterPack ? { onSuccess: "node scripts/dev-electron.mjs" } : {}),
-    },
+    launchElectronAfterPack ? mainPackConfigWithLaunch : mainPackConfig,
     {
       format: "cjs",
       outDir: "dist",
@@ -43,6 +59,18 @@ export default defineConfig({
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
       entry: ["src/utility.ts"],
+      plugins: [rawSqlPlugin],
+      deps: {
+        alwaysBundle: (id) => id.startsWith("@mosaic/"),
+      },
+    },
+    {
+      format: "cjs",
+      outDir: "dist",
+      sourcemap: true,
+      outExtensions: () => ({ js: ".cjs" }),
+      entry: ["src/seed.ts"],
+      plugins: [rawSqlPlugin],
       deps: {
         alwaysBundle: (id) => id.startsWith("@mosaic/"),
       },

@@ -1,5 +1,7 @@
 export const UTILITY_RESTART_DELAYS_MS = [500, 1_000, 2_000] as const;
 export const UTILITY_HEALTHY_RESET_MS = 30_000;
+export const UTILITY_BOOT_TIMEOUT_MS = 10_000;
+export const UTILITY_READY_TIMEOUT_MS = 120_000;
 
 export type UtilityRestartDecision =
   | {

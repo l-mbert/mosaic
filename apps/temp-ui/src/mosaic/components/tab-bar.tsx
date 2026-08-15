@@ -11,20 +11,28 @@ function TabItem({
   active,
   onSelect,
   onClose,
+  onPeek,
+  onPeekLeave,
 }: {
   tab: Tab;
   active: boolean;
   onSelect: () => void;
   onClose: () => void;
+  onPeek: (tab: Tab, element: HTMLElement) => void;
+  onPeekLeave: () => void;
 }) {
   const Icon = registry[tab.plugin].icon;
 
   return (
     <div
+      // No peek for the tab you are already looking at — the card would just
+      // cover a smaller copy of what is on screen behind it.
+      onMouseEnter={(event) => !active && onPeek(tab, event.currentTarget)}
+      onMouseLeave={onPeekLeave}
       className={cn(
         // Padding and in-flow children are identical in every state, so a tab
         // cannot change width when it is hovered or when it becomes active.
-        "group relative flex h-7 min-w-32 max-w-56 shrink items-center gap-2 rounded-md px-2.5",
+        "group relative flex h-7 min-w-48 max-w-72 shrink items-center gap-2 rounded-md px-2.5",
         active ? "bg-background shadow-xs ring-1 ring-black/5" : "hover:bg-black/4",
       )}
     >
@@ -94,12 +102,16 @@ export function TabBar({
   onSelect,
   onClose,
   onHome,
+  onPeek,
+  onPeekLeave,
 }: {
   tabs: Tab[];
   activeId: string;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onHome: () => void;
+  onPeek: (tab: Tab, element: HTMLElement) => void;
+  onPeekLeave: () => void;
 }) {
   return (
     <header className="flex h-10 shrink-0 items-center gap-1.5 pr-2 pl-3">
@@ -133,6 +145,8 @@ export function TabBar({
                 active={active}
                 onSelect={() => onSelect(tab.id)}
                 onClose={() => onClose(tab.id)}
+                onPeek={onPeek}
+                onPeekLeave={onPeekLeave}
               />
             </div>
           );

@@ -1,16 +1,24 @@
-import { Schema } from "effect";
-import type { FromClientEncoded, FromServerEncoded } from "effect/unstable/rpc/RpcMessage";
+import * as Schema from "effect/Schema";
 
-const RequestId = Schema.Union([Schema.String, Schema.Number]);
+const RequestId = Schema.Union([Schema.String.check(Schema.isMaxLength(256)), Schema.Finite]);
+const FrameTag = Schema.NonEmptyString.check(Schema.isMaxLength(128));
+const TraceIdentifier = Schema.String.check(Schema.isMaxLength(128));
+const Header = Schema.mutable(
+  Schema.Tuple([
+    Schema.NonEmptyString.check(Schema.isMaxLength(128)),
+    Schema.String.check(Schema.isMaxLength(8_192)),
+  ]),
+);
+const Headers = Schema.Array(Header).check(Schema.isMaxLength(64));
 
 const Request = Schema.TaggedStruct("Request", {
   id: RequestId,
-  tag: Schema.String,
+  tag: FrameTag,
   payload: Schema.Unknown,
-  headers: Schema.Array(Schema.mutable(Schema.Tuple([Schema.String, Schema.String]))),
+  headers: Headers,
   isNotification: Schema.optionalKey(Schema.Literal(true)),
-  traceId: Schema.optionalKey(Schema.String),
-  spanId: Schema.optionalKey(Schema.String),
+  traceId: Schema.optionalKey(TraceIdentifier),
+  spanId: Schema.optionalKey(TraceIdentifier),
   sampled: Schema.optionalKey(Schema.Boolean),
 });
 
@@ -67,9 +75,3 @@ const Pong = Schema.TaggedStruct("Pong", {});
 export const BackendRpcServerFrame = Schema.Union([Chunk, Exit, Defect, Pong]);
 
 export type BackendRpcServerFrame = typeof BackendRpcServerFrame.Type;
-
-const clientFrameTypeCheck: FromClientEncoded = null as unknown as BackendRpcClientFrame;
-const serverFrameTypeCheck: FromServerEncoded = null as unknown as BackendRpcServerFrame;
-
-void clientFrameTypeCheck;
-void serverFrameTypeCheck;

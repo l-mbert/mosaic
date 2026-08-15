@@ -1,5 +1,5 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import { Effect, Layer, Stream } from "effect";
+import { Effect, FiberSet, Layer, Stream } from "effect";
 import * as Electron from "electron";
 
 import { MainWindow } from "./main/MainWindow.ts";
@@ -34,11 +34,10 @@ const program = Effect.scoped(
 
     const mainWindow = yield* MainWindow;
     const utilitySupervisor = yield* UtilitySupervisor.UtilitySupervisor;
-    const context = yield* Effect.context<never>();
-    const runFork = Effect.runForkWith(context);
+    const runFork = yield* FiberSet.makeRuntime();
     yield* Stream.fromPubSub(utilitySupervisor.events).pipe(
       Stream.runForEach((event) => {
-        if (event._tag === "Ready" && event.restarted) {
+        if (event._tag === "Ready") {
           return mainWindow.reload;
         }
         if (event._tag === "Exhausted") {

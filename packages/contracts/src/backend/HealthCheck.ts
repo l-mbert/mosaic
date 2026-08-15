@@ -1,7 +1,8 @@
-import { Schema } from "effect";
-import { Rpc, RpcGroup } from "effect/unstable/rpc";
+import * as Schema from "effect/Schema";
+import * as Rpc from "effect/unstable/rpc/Rpc";
+import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
-import { PROTOCOL_VERSION } from "../handshake.ts";
+import { PROTOCOL_VERSION } from "../rpc/Handshake.ts";
 
 export const HealthResult = Schema.Struct({
   status: Schema.Literal("healthy"),

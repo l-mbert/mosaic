@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import {
   ClientHello,
@@ -7,7 +8,7 @@ import {
   PROTOCOL_VERSION,
   UtilityHandshakeResponse,
   UtilityReady,
-} from "./handshake.ts";
+} from "./Handshake.ts";
 
 describe("desktop handshake", () => {
   it.effect("decodes the current protocol handshake", () =>

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r build",
+    "db:seed": "pnpm --dir apps/desktop db:seed",
     "dev": "vp run --filter @mosaic/desktop --filter @mosaic/renderer --parallel dev",
     "dev:temp-ui": "vp run temp-ui#dev"
   },
