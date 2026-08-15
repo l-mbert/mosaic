@@ -7,11 +7,11 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
-import { makeSqliteLayer, SqliteMemory } from "./Layers/Sqlite.ts";
+import { makeSqliteLayer, sqliteNameTransforms, SqliteMemory } from "./Layers/Sqlite.ts";
 import { runMigrations } from "./Migrations.ts";
 import { ReadSqlClient } from "./Services/Database.ts";
 
-const MigrationTestLive = SqliteClient.layer({ filename: ":memory:" });
+const MigrationTestLive = SqliteClient.layer({ filename: ":memory:", ...sqliteNameTransforms });
 
 describe("SQLite migrations", () => {
   it.effect("creates the current schema", () =>
@@ -32,7 +32,7 @@ describe("SQLite migrations", () => {
         )
         ORDER BY name
       `;
-      const foreignKeys = yield* sql<{ readonly foreign_keys: number }>`
+      const foreignKeys = yield* sql<{ readonly foreignKeys: number }>`
         PRAGMA foreign_keys
       `;
 
@@ -49,7 +49,7 @@ describe("SQLite migrations", () => {
           "thread_summaries",
         ],
       );
-      assert.strictEqual(foreignKeys[0]?.foreign_keys, 1);
+      assert.strictEqual(foreignKeys[0]?.foreignKeys, 1);
     }).pipe(Effect.provide(SqliteMemory)),
   );
 
@@ -91,7 +91,7 @@ describe("SQLite migrations", () => {
 
       yield* runMigrations({ toMigrationInclusive: 2 });
       const summaries = yield* sql<{ readonly id: string; readonly messageCount: number }>`
-        SELECT id, message_count AS "messageCount"
+        SELECT id, message_count
         FROM thread_summaries
       `;
       assert.deepStrictEqual(summaries, [{ id: "thread-a", messageCount: 1 }]);
@@ -154,7 +154,7 @@ describe("SQLite migrations", () => {
 
       yield* runMigrations({ toMigrationInclusive: 5 });
       const searchRows = yield* sql<{ readonly messageId: string; readonly body: string }>`
-        SELECT message_id AS "messageId", body
+        SELECT message_id, body
         FROM message_search
       `;
       assert.deepStrictEqual(searchRows, [{ messageId: "message-a", body: "Body" }]);

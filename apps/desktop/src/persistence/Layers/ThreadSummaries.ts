@@ -39,7 +39,7 @@ export const loadParticipants = Effect.fn("ThreadRepository.loadParticipants")(f
   const rows = yield* sql<typeof ParticipantRow.Type>`
     WITH ranked_participants AS (
       SELECT
-        messages.thread_id AS "threadId",
+        messages.thread_id,
         addresses.name,
         addresses.address,
         ROW_NUMBER() OVER (
@@ -63,10 +63,10 @@ export const loadParticipants = Effect.fn("ThreadRepository.loadParticipants")(f
         AND addresses.role IN ('from', 'to', 'cc', 'bcc')
         AND lower(trim(addresses.address)) <> lower(trim(accounts.email_address))
     )
-    SELECT "threadId", name, address
+    SELECT thread_id, name, address
     FROM ranked_participants
     WHERE address_rank = 1
-    ORDER BY "threadId", lower(address)
+    ORDER BY thread_id, lower(address)
   `.pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(ParticipantRow))),
     Effect.mapError(

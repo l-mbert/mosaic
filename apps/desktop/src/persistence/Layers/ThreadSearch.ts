@@ -122,16 +122,16 @@ const makeThreadSearchRepository = Effect.gen(function* () {
       )
       SELECT
         summaries.id,
-        summaries.account_id AS "accountId",
+        summaries.account_id,
         summaries.subject,
         summaries.preview,
-        summaries.last_message_at AS "lastMessageAt",
-        summaries.message_count AS "messageCount",
-        summaries.unread_count AS "unreadCount",
-        summaries.has_attachments AS "hasAttachments",
-        ranked.message_id AS "messageId",
+        summaries.last_message_at,
+        summaries.message_count,
+        summaries.unread_count,
+        summaries.has_attachments,
+        ranked.message_id,
         ranked.excerpt,
-        ranked.matching_message_count AS "matchingMessageCount"
+        ranked.matching_message_count
       FROM ranked
       JOIN thread_summaries summaries ON summaries.id = ranked.thread_id
       WHERE ranked.match_number = 1

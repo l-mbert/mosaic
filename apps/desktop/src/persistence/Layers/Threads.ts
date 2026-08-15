@@ -33,12 +33,12 @@ const makeThreadRepository = Effect.gen(function* () {
     execute: (threadId) => sql`
       SELECT
         id,
-        account_id AS "accountId",
-        provider_thread_id AS "providerThreadId",
-        threading_kind AS "threadingKind",
+        account_id,
+        provider_thread_id,
+        threading_kind,
         subject,
-        created_at AS "createdAt",
-        updated_at AS "updatedAt"
+        created_at,
+        updated_at
       FROM threads
       WHERE id = ${threadId}
     `,
@@ -50,22 +50,22 @@ const makeThreadRepository = Effect.gen(function* () {
     execute: (threadId) => sql`
       SELECT
         id,
-        account_id AS "accountId",
-        thread_id AS "threadId",
-        provider_message_id AS "providerMessageId",
-        internet_message_id AS "internetMessageId",
-        in_reply_to AS "inReplyTo",
+        account_id,
+        thread_id,
+        provider_message_id,
+        internet_message_id,
+        in_reply_to,
         subject,
-        sent_at AS "sentAt",
-        received_at AS "receivedAt",
+        sent_at,
+        received_at,
         preview,
-        text_body AS "textBody",
-        html_body AS "htmlBody",
-        is_read AS "isRead",
-        is_starred AS "isStarred",
-        is_important AS "isImportant",
-        is_draft AS "isDraft",
-        raw_message_blob_hash AS "rawMessageBlobHash"
+        text_body,
+        html_body,
+        is_read,
+        is_starred,
+        is_important,
+        is_draft,
+        raw_message_blob_hash
       FROM messages
       WHERE thread_id = ${threadId}
       ORDER BY received_at, id
@@ -76,7 +76,7 @@ const makeThreadRepository = Effect.gen(function* () {
     Request: ThreadId,
     Result: ReferenceRow,
     execute: (threadId) => sql`
-      SELECT reference_rows.message_id AS "messageId", reference_rows.reference
+      SELECT reference_rows.message_id, reference_rows.reference
       FROM message_references reference_rows
       JOIN messages ON messages.id = reference_rows.message_id
       WHERE messages.thread_id = ${threadId}
@@ -88,7 +88,7 @@ const makeThreadRepository = Effect.gen(function* () {
     Request: ThreadId,
     Result: AddressRow,
     execute: (threadId) => sql`
-      SELECT address_rows.message_id AS "messageId", address_rows.role,
+      SELECT address_rows.message_id, address_rows.role,
              address_rows.name, address_rows.address
       FROM message_addresses address_rows
       JOIN messages ON messages.id = address_rows.message_id
@@ -101,7 +101,7 @@ const makeThreadRepository = Effect.gen(function* () {
     Request: ThreadId,
     Result: MessageMailboxRow,
     execute: (threadId) => sql`
-      SELECT membership.message_id AS "messageId", membership.mailbox_id AS "mailboxId"
+      SELECT membership.message_id, membership.mailbox_id
       FROM message_mailboxes membership
       JOIN messages ON messages.id = membership.message_id
       WHERE messages.thread_id = ${threadId}
@@ -115,14 +115,14 @@ const makeThreadRepository = Effect.gen(function* () {
     execute: (threadId) => sql`
       SELECT
         attachments.id,
-        attachments.message_id AS "messageId",
-        attachments.provider_attachment_id AS "providerAttachmentId",
+        attachments.message_id,
+        attachments.provider_attachment_id,
         attachments.filename,
-        attachments.media_type AS "mediaType",
-        attachments.size_bytes AS "sizeBytes",
-        attachments.content_id AS "contentId",
+        attachments.media_type,
+        attachments.size_bytes,
+        attachments.content_id,
         attachments.disposition,
-        attachments.blob_hash AS "blobHash"
+        attachments.blob_hash
       FROM attachments
       JOIN messages ON messages.id = attachments.message_id
       WHERE messages.thread_id = ${threadId}
@@ -151,13 +151,13 @@ const makeThreadRepository = Effect.gen(function* () {
     const rows = yield* sql<typeof ThreadSummaryRow.Type>`
       SELECT
         summaries.id,
-        summaries.account_id AS "accountId",
+        summaries.account_id,
         summaries.subject,
         summaries.preview,
-        summaries.last_message_at AS "lastMessageAt",
-        summaries.message_count AS "messageCount",
-        summaries.unread_count AS "unreadCount",
-        summaries.has_attachments AS "hasAttachments"
+        summaries.last_message_at,
+        summaries.message_count,
+        summaries.unread_count,
+        summaries.has_attachments
       FROM thread_summaries summaries
       WHERE ${scopeCondition} AND ${cursorCondition}
       ORDER BY summaries.last_message_at DESC, summaries.id ASC

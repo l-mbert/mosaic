@@ -20,12 +20,12 @@ const makeAccountRepository = Effect.gen(function* () {
     execute: () => sql`
       SELECT
         id,
-        provider_kind AS "providerKind",
-        provider_account_id AS "providerAccountId",
-        display_name AS "displayName",
-        email_address AS "emailAddress",
-        created_at AS "createdAt",
-        updated_at AS "updatedAt"
+        provider_kind,
+        provider_account_id,
+        display_name,
+        email_address,
+        created_at,
+        updated_at
       FROM accounts
       ORDER BY created_at, id
     `,

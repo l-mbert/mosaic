@@ -23,24 +23,24 @@ const makeMailboxRepository = Effect.gen(function* () {
         ? sql`
             SELECT
               id,
-              account_id AS "accountId",
-              provider_mailbox_id AS "providerMailboxId",
+              account_id,
+              provider_mailbox_id,
               name,
               kind,
               role,
-              parent_id AS "parentId"
+              parent_id
             FROM mailboxes
             ORDER BY account_id, CASE WHEN role = 'inbox' THEN 0 ELSE 1 END, name, id
           `
         : sql`
             SELECT
               id,
-              account_id AS "accountId",
-              provider_mailbox_id AS "providerMailboxId",
+              account_id,
+              provider_mailbox_id,
               name,
               kind,
               role,
-              parent_id AS "parentId"
+              parent_id
             FROM mailboxes
             WHERE account_id = ${accountId}
             ORDER BY CASE WHEN role = 'inbox' THEN 0 ELSE 1 END, name, id

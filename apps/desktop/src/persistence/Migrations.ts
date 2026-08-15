@@ -42,7 +42,7 @@ const canonicalSearchBodyMigration = Effect.gen(function* () {
     Request: Schema.String,
     Result: SearchBodyRow,
     execute: (afterId) => sql`
-      SELECT id, text_body AS "textBody", html_body AS "htmlBody"
+      SELECT id, text_body, html_body
       FROM messages
       WHERE id > ${afterId}
       ORDER BY id
