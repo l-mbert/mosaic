@@ -9,6 +9,8 @@
     "dev:temp-ui": "vp run temp-ui#dev"
   },
   "devDependencies": {
+    "@oxlint/plugins": "catalog:",
+    "oxlint": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {
