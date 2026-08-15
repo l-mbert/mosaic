@@ -6,8 +6,9 @@ export const makeThreadScopeCondition = (
   scope: ThreadScope,
   threadAlias: string,
 ) => {
-  const threadAccount = sql.literal(`${threadAlias}.account_id`);
-  const threadId = sql.literal(`${threadAlias}.id`);
+  const thread = sql(threadAlias);
+  const threadAccount = sql`${thread}.account_id`;
+  const threadId = sql`${thread}.id`;
 
   switch (scope._tag) {
     case "All":

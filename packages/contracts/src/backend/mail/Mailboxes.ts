@@ -29,7 +29,7 @@ export const MailboxSummary = Schema.Struct({
 export type MailboxSummary = typeof MailboxSummary.Type;
 
 export const ListMailboxes = Rpc.make("ListMailboxes", {
-  payload: Schema.Struct({ accountId: Schema.NullOr(AccountId) }),
+  payload: { accountId: Schema.NullOr(AccountId) },
   success: Schema.Array(MailboxSummary),
   error: BackendMailError,
 });

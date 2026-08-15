@@ -1,11 +1,13 @@
 import {
   AccountId,
   AttachmentId,
+  EmailAddress,
   MailAddress,
   MailboxId,
   MessageId,
   ThreadId,
 } from "@mosaic/contracts/backend/mail";
+import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 
 import { StoredAccount } from "./Services/Accounts.ts";
@@ -25,7 +27,11 @@ export const MailFixture = Schema.Struct({
 });
 export type MailFixture = typeof MailFixture.Type;
 
-const lambert = MailAddress.make({ name: "Lambert", address: "lambert@example.com" });
+const utcTimestamp = DateTime.makeUnsafe;
+const lambert = MailAddress.make({
+  name: "Lambert",
+  address: EmailAddress.make("lambert@example.com"),
+});
 
 export const fixtureIds = {
   accounts: {
@@ -67,26 +73,26 @@ const accounts = [
     providerAccountId: "118208422804124894995",
     displayName: "Personal Gmail",
     emailAddress: lambert.address,
-    createdAt: "2026-08-01T08:00:00.000Z",
-    updatedAt: "2026-08-12T18:00:00.000Z",
+    createdAt: utcTimestamp("2026-08-01T08:00:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-12T18:00:00.000Z"),
   }),
   StoredAccount.make({
     id: fixtureIds.accounts.microsoft,
     providerKind: "microsoft-graph",
     providerAccountId: "c555f57b-1e45-4aeb-9dc2-9d4f2d240c1f",
     displayName: "Mosaic Work",
-    emailAddress: "lambert@mosaic.test",
-    createdAt: "2026-08-01T08:10:00.000Z",
-    updatedAt: "2026-08-12T18:05:00.000Z",
+    emailAddress: EmailAddress.make("lambert@mosaic.test"),
+    createdAt: utcTimestamp("2026-08-01T08:10:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-12T18:05:00.000Z"),
   }),
   StoredAccount.make({
     id: fixtureIds.accounts.imap,
     providerKind: "imap",
     providerAccountId: "lambert@fastmail.test",
     displayName: "Fastmail",
-    emailAddress: "lambert@fastmail.test",
-    createdAt: "2026-08-01T08:20:00.000Z",
-    updatedAt: "2026-08-12T18:10:00.000Z",
+    emailAddress: EmailAddress.make("lambert@fastmail.test"),
+    createdAt: utcTimestamp("2026-08-01T08:20:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-12T18:10:00.000Z"),
   }),
 ];
 
@@ -181,8 +187,8 @@ const threads = [
     providerThreadId: "gmail-thread-1842",
     threadingKind: "provider",
     subject: "Q3 annual report",
-    createdAt: "2026-08-10T08:30:00.000Z",
-    updatedAt: "2026-08-10T10:15:00.000Z",
+    createdAt: utcTimestamp("2026-08-10T08:30:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-10T10:15:00.000Z"),
   }),
   StoredThread.make({
     id: fixtureIds.threads.designReview,
@@ -190,8 +196,8 @@ const threads = [
     providerThreadId: "AAQkAGQ5M2Q1YTI3LTc4ZjAtNDc0ZC1hYw==",
     threadingKind: "provider",
     subject: "Desktop navigation review",
-    createdAt: "2026-08-11T13:00:00.000Z",
-    updatedAt: "2026-08-11T13:00:00.000Z",
+    createdAt: utcTimestamp("2026-08-11T13:00:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-11T13:00:00.000Z"),
   }),
   StoredThread.make({
     id: fixtureIds.threads.migration,
@@ -199,8 +205,8 @@ const threads = [
     providerThreadId: null,
     threadingKind: "headers",
     subject: "SQLite migration plan",
-    createdAt: "2026-08-12T07:45:00.000Z",
-    updatedAt: "2026-08-12T09:20:00.000Z",
+    createdAt: utcTimestamp("2026-08-12T07:45:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-12T09:20:00.000Z"),
   }),
   StoredThread.make({
     id: fixtureIds.threads.newsletter,
@@ -208,8 +214,8 @@ const threads = [
     providerThreadId: null,
     threadingKind: "singleton",
     subject: "The local-first dispatch",
-    createdAt: "2026-08-09T06:00:00.000Z",
-    updatedAt: "2026-08-09T06:00:00.000Z",
+    createdAt: utcTimestamp("2026-08-09T06:00:00.000Z"),
+    updatedAt: utcTimestamp("2026-08-09T06:00:00.000Z"),
   }),
 ];
 
@@ -223,9 +229,12 @@ const messages = [
     inReplyTo: null,
     references: [],
     subject: "Q3 annual report",
-    sentAt: "2026-08-10T08:29:00.000Z",
-    receivedAt: "2026-08-10T08:30:00.000Z",
-    from: MailAddress.make({ name: "Ava Chen", address: "ava@northstar.test" }),
+    sentAt: utcTimestamp("2026-08-10T08:29:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-10T08:30:00.000Z"),
+    from: MailAddress.make({
+      name: "Ava Chen",
+      address: EmailAddress.make("ava@northstar.test"),
+    }),
     replyTo: [],
     to: [lambert],
     cc: [],
@@ -266,11 +275,16 @@ const messages = [
     inReplyTo: "<annual-report-1@northstar.test>",
     references: ["<annual-report-1@northstar.test>"],
     subject: "Re: Q3 annual report",
-    sentAt: "2026-08-10T10:15:00.000Z",
-    receivedAt: "2026-08-10T10:15:00.000Z",
+    sentAt: utcTimestamp("2026-08-10T10:15:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-10T10:15:00.000Z"),
     from: lambert,
     replyTo: [],
-    to: [MailAddress.make({ name: "Ava Chen", address: "ava@northstar.test" })],
+    to: [
+      MailAddress.make({
+        name: "Ava Chen",
+        address: EmailAddress.make("ava@northstar.test"),
+      }),
+    ],
     cc: [],
     bcc: [],
     preview: "Reviewed. I left two comments on the Mosaic section.",
@@ -297,12 +311,25 @@ const messages = [
     inReplyTo: null,
     references: [],
     subject: "Desktop navigation review",
-    sentAt: "2026-08-11T12:58:00.000Z",
-    receivedAt: "2026-08-11T13:00:00.000Z",
-    from: MailAddress.make({ name: "Mira Patel", address: "mira@mosaic.test" }),
+    sentAt: utcTimestamp("2026-08-11T12:58:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-11T13:00:00.000Z"),
+    from: MailAddress.make({
+      name: "Mira Patel",
+      address: EmailAddress.make("mira@mosaic.test"),
+    }),
     replyTo: [],
-    to: [MailAddress.make({ name: "Lambert", address: "lambert@mosaic.test" })],
-    cc: [MailAddress.make({ name: "Product", address: "product@mosaic.test" })],
+    to: [
+      MailAddress.make({
+        name: "Lambert",
+        address: EmailAddress.make("lambert@mosaic.test"),
+      }),
+    ],
+    cc: [
+      MailAddress.make({
+        name: "Product",
+        address: EmailAddress.make("product@mosaic.test"),
+      }),
+    ],
     bcc: [],
     preview: "The simplified navigation prototype is ready for review.",
     body: {
@@ -340,11 +367,19 @@ const messages = [
     inReplyTo: null,
     references: [],
     subject: "SQLite migration plan",
-    sentAt: "2026-08-12T07:43:00.000Z",
-    receivedAt: "2026-08-12T07:45:00.000Z",
-    from: MailAddress.make({ name: "Noah Williams", address: "noah@atelier.test" }),
+    sentAt: utcTimestamp("2026-08-12T07:43:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-12T07:45:00.000Z"),
+    from: MailAddress.make({
+      name: "Noah Williams",
+      address: EmailAddress.make("noah@atelier.test"),
+    }),
     replyTo: [],
-    to: [MailAddress.make({ name: "Lambert", address: "lambert@fastmail.test" })],
+    to: [
+      MailAddress.make({
+        name: "Lambert",
+        address: EmailAddress.make("lambert@fastmail.test"),
+      }),
+    ],
     cc: [],
     bcc: [],
     preview: "The migration should keep mail and FTS changes in one transaction.",
@@ -371,11 +406,19 @@ const messages = [
     inReplyTo: "<sqlite-migration-1@atelier.test>",
     references: ["<sqlite-migration-1@atelier.test>"],
     subject: "Re: SQLite migration plan",
-    sentAt: "2026-08-12T09:20:00.000Z",
-    receivedAt: "2026-08-12T09:20:00.000Z",
-    from: MailAddress.make({ name: "Lambert", address: "lambert@fastmail.test" }),
+    sentAt: utcTimestamp("2026-08-12T09:20:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-12T09:20:00.000Z"),
+    from: MailAddress.make({
+      name: "Lambert",
+      address: EmailAddress.make("lambert@fastmail.test"),
+    }),
     replyTo: [],
-    to: [MailAddress.make({ name: "Noah Williams", address: "noah@atelier.test" })],
+    to: [
+      MailAddress.make({
+        name: "Noah Williams",
+        address: EmailAddress.make("noah@atelier.test"),
+      }),
+    ],
     cc: [],
     bcc: [],
     preview: "Agreed. The migration and search index should commit atomically.",
@@ -402,11 +445,19 @@ const messages = [
     inReplyTo: null,
     references: [],
     subject: "The local-first dispatch",
-    sentAt: "2026-08-09T05:58:00.000Z",
-    receivedAt: "2026-08-09T06:00:00.000Z",
-    from: MailAddress.make({ name: "Local First", address: "dispatch@localfirst.test" }),
+    sentAt: utcTimestamp("2026-08-09T05:58:00.000Z"),
+    receivedAt: utcTimestamp("2026-08-09T06:00:00.000Z"),
+    from: MailAddress.make({
+      name: "Local First",
+      address: EmailAddress.make("dispatch@localfirst.test"),
+    }),
     replyTo: [],
-    to: [MailAddress.make({ name: null, address: "lambert@fastmail.test" })],
+    to: [
+      MailAddress.make({
+        name: null,
+        address: EmailAddress.make("lambert@fastmail.test"),
+      }),
+    ],
     cc: [],
     bcc: [],
     preview: "This week: durable local search and calm offline software.",

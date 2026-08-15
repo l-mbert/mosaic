@@ -18,33 +18,19 @@ const makeMailboxRepository = Effect.gen(function* () {
   const listRows = SqlSchema.findAll({
     Request: Schema.NullOr(AccountId),
     Result: StoredMailbox,
-    execute: (accountId) =>
-      accountId === null
-        ? sql`
-            SELECT
-              id,
-              account_id,
-              provider_mailbox_id,
-              name,
-              kind,
-              role,
-              parent_id
-            FROM mailboxes
-            ORDER BY account_id, CASE WHEN role = 'inbox' THEN 0 ELSE 1 END, name, id
-          `
-        : sql`
-            SELECT
-              id,
-              account_id,
-              provider_mailbox_id,
-              name,
-              kind,
-              role,
-              parent_id
-            FROM mailboxes
-            WHERE account_id = ${accountId}
-            ORDER BY CASE WHEN role = 'inbox' THEN 0 ELSE 1 END, name, id
-          `,
+    execute: (accountId) => sql`
+      SELECT
+        id,
+        account_id,
+        provider_mailbox_id,
+        name,
+        kind,
+        role,
+        parent_id
+      FROM mailboxes
+      WHERE ${sql.and(accountId === null ? [] : [sql`account_id = ${accountId}`])}
+      ORDER BY account_id, CASE WHEN role = 'inbox' THEN 0 ELSE 1 END, name, id
+    `,
   });
 
   const list: MailboxRepositoryService["list"] = Effect.fn("MailboxRepository.list")((accountId) =>

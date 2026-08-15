@@ -1,7 +1,7 @@
 import { ThreadId, ThreadPage, ThreadPageCursor } from "@mosaic/contracts/backend/mail";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
@@ -137,13 +137,14 @@ const makeThreadRepository = Effect.gen(function* () {
   }: Parameters<ThreadRepositoryService["query"]>[0]) {
     const limit = clampPageSize(requestedLimit);
     const scopeCondition = makeThreadScopeCondition(sql, scope, "summaries");
+    const cursorTimestamp = cursor === null ? null : DateTime.formatIso(cursor.lastMessageAt);
     const cursorCondition =
       cursor === null
         ? sql`1 = 1`
         : sql`(
-            summaries.last_message_at < ${cursor.lastMessageAt}
+            summaries.last_message_at < ${cursorTimestamp}
             OR (
-              summaries.last_message_at = ${cursor.lastMessageAt}
+              summaries.last_message_at = ${cursorTimestamp}
               AND summaries.id > ${cursor.threadId}
             )
           )`;
@@ -207,7 +208,7 @@ const makeThreadRepository = Effect.gen(function* () {
   );
 
   const readInTransaction = Effect.fnUntraced(function* (threadId) {
-    const threadOption = yield* getThreadRow(threadId).pipe(
+    const thread = yield* getThreadRow(threadId).pipe(
       Effect.mapError(
         (cause) =>
           new MailRepositoryError({
@@ -216,22 +217,19 @@ const makeThreadRepository = Effect.gen(function* () {
             cause,
           }),
       ),
+      Effect.flatMap(
+        Effect.fromOption(() => new MailEntityNotFound({ entity: "thread", id: threadId })),
+      ),
     );
-    if (Option.isNone(threadOption)) {
-      return yield* new MailEntityNotFound({ entity: "thread", id: threadId });
-    }
 
-    const [messageRows, referenceRows, addressRows, mailboxRows, attachmentRows] =
-      yield* Effect.all(
-        [
-          listMessageRows(threadId),
-          listReferenceRows(threadId),
-          listAddressRows(threadId),
-          listMessageMailboxRows(threadId),
-          listAttachmentRows(threadId),
-        ],
-        { concurrency: 1 },
-      ).pipe(
+    const { messageRows, referenceRows, addressRows, mailboxRows, attachmentRows } =
+      yield* Effect.all({
+        messageRows: listMessageRows(threadId),
+        referenceRows: listReferenceRows(threadId),
+        addressRows: listAddressRows(threadId),
+        mailboxRows: listMessageMailboxRows(threadId),
+        attachmentRows: listAttachmentRows(threadId),
+      }).pipe(
         Effect.mapError(
           (cause) =>
             new MailRepositoryError({
@@ -243,7 +241,7 @@ const makeThreadRepository = Effect.gen(function* () {
       );
 
     return yield* assembleThreadDetail(
-      threadOption.value,
+      thread,
       messageRows,
       referenceRows,
       addressRows,

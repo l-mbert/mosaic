@@ -1,10 +1,4 @@
-import {
-  AccountId,
-  MailAddress,
-  ThreadId,
-  ThreadSummary,
-  UtcTimestamp,
-} from "@mosaic/contracts/backend/mail";
+import { AccountId, MailAddress, ThreadId, ThreadSummary } from "@mosaic/contracts/backend/mail";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -16,7 +10,7 @@ export const ThreadSummaryRow = Schema.Struct({
   accountId: AccountId,
   subject: Schema.String,
   preview: Schema.String,
-  lastMessageAt: UtcTimestamp,
+  lastMessageAt: Schema.DateTimeUtcFromString,
   messageCount: Schema.Natural,
   unreadCount: Schema.Natural,
   hasAttachments: Schema.BooleanFromBit,

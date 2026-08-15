@@ -7,14 +7,13 @@ import { AccountId, ThreadId } from "./Ids.ts";
 import { MailMessage } from "./Messages.ts";
 import { PageLimit } from "./Pagination.ts";
 import { ThreadScope } from "./ThreadScope.ts";
-import { UtcTimestamp } from "./Timestamps.ts";
 
 export const MailThread = Schema.Struct({
   id: ThreadId,
   accountId: AccountId,
   subject: Schema.String,
-  createdAt: UtcTimestamp,
-  updatedAt: UtcTimestamp,
+  createdAt: Schema.DateTimeUtcFromString,
+  updatedAt: Schema.DateTimeUtcFromString,
 });
 export type MailThread = typeof MailThread.Type;
 
@@ -24,7 +23,7 @@ export const ThreadSummary = Schema.Struct({
   subject: Schema.String,
   participants: Schema.Array(MailAddress),
   preview: Schema.String,
-  lastMessageAt: UtcTimestamp,
+  lastMessageAt: Schema.DateTimeUtcFromString,
   messageCount: Schema.Natural,
   unreadCount: Schema.Natural,
   hasAttachments: Schema.Boolean,
@@ -38,7 +37,7 @@ export const ThreadDetail = Schema.Struct({
 export type ThreadDetail = typeof ThreadDetail.Type;
 
 export const ThreadPageCursor = Schema.Struct({
-  lastMessageAt: UtcTimestamp,
+  lastMessageAt: Schema.DateTimeUtcFromString,
   threadId: ThreadId,
 });
 export type ThreadPageCursor = typeof ThreadPageCursor.Type;
@@ -50,17 +49,17 @@ export const ThreadPage = Schema.Struct({
 export type ThreadPage = typeof ThreadPage.Type;
 
 export const QueryThreads = Rpc.make("QueryThreads", {
-  payload: Schema.Struct({
+  payload: {
     scope: ThreadScope,
     limit: PageLimit,
     cursor: Schema.NullOr(ThreadPageCursor),
-  }),
+  },
   success: ThreadPage,
   error: BackendMailError,
 });
 
 export const ReadThread = Rpc.make("ReadThread", {
-  payload: Schema.Struct({ threadId: ThreadId }),
+  payload: { threadId: ThreadId },
   success: ThreadDetail,
   error: BackendMailError,
 });

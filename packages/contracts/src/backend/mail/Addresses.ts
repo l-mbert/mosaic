@@ -1,6 +1,8 @@
 import * as Schema from "effect/Schema";
 
-export const EmailAddress = Schema.Trim.check(Schema.isMinLength(1));
+export const EmailAddress = Schema.Trim.check(Schema.isMinLength(1)).pipe(
+  Schema.brand("EmailAddress"),
+);
 export type EmailAddress = typeof EmailAddress.Type;
 
 export const MailAddress = Schema.Struct({

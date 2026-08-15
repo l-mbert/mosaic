@@ -4,7 +4,6 @@ import {
   MailboxId,
   MessageId,
   ThreadId,
-  UtcTimestamp,
 } from "@mosaic/contracts/backend/mail";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -26,8 +25,8 @@ export const MessageRow = Schema.Struct({
   internetMessageId: Schema.NullOr(Schema.String),
   inReplyTo: Schema.NullOr(Schema.String),
   subject: Schema.String,
-  sentAt: UtcTimestamp,
-  receivedAt: UtcTimestamp,
+  sentAt: Schema.DateTimeUtcFromString,
+  receivedAt: Schema.DateTimeUtcFromString,
   preview: Schema.String,
   textBody: Schema.NullOr(Schema.String),
   htmlBody: Schema.NullOr(UntrustedHtml),

@@ -15,7 +15,6 @@ export * from "./Pagination.ts";
 export * from "./ThreadScope.ts";
 export * from "./ThreadSearch.ts";
 export * from "./Threads.ts";
-export * from "./Timestamps.ts";
 
 export const MailRpcs = RpcGroup.make(
   ListAccounts,

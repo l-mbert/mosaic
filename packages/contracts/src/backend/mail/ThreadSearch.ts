@@ -37,12 +37,12 @@ export const ThreadSearchPage = Schema.Struct({
 export type ThreadSearchPage = typeof ThreadSearchPage.Type;
 
 export const SearchMail = Rpc.make("SearchMail", {
-  payload: Schema.Struct({
+  payload: {
     scope: ThreadScope,
     query: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
     limit: PageLimit,
     cursor: Schema.NullOr(ThreadSearchCursor),
-  }),
+  },
   success: ThreadSearchPage,
   error: BackendMailError,
 });

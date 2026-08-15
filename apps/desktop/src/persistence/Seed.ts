@@ -4,7 +4,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import type * as SqlConnection from "effect/unstable/sql/SqlConnection";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
-import { mailFixture, type MailFixture } from "./Fixtures.ts";
+import { MailFixture, mailFixture } from "./Fixtures.ts";
 import { toSearchableText } from "./SearchText.ts";
 
 export const SeedResult = Schema.TaggedStruct("SeedResult", {
@@ -57,7 +57,8 @@ export const seedMailFixture = Effect.fn("Mail.seedMailFixture")(function* (
         });
       }
 
-      const messageRows = fixture.messages.map((message) => ({
+      const encodedFixture = yield* Schema.encodeEffect(MailFixture)(fixture);
+      const messageRows = encodedFixture.messages.map((message) => ({
         id: message.id,
         accountId: message.accountId,
         threadId: message.threadId,
@@ -77,14 +78,14 @@ export const seedMailFixture = Effect.fn("Mail.seedMailFixture")(function* (
         rawMessageBlobHash: message.rawMessageBlobHash,
         searchBody: toSearchableText(message.body),
       }));
-      const referenceRows = fixture.messages.flatMap((message) =>
+      const referenceRows = encodedFixture.messages.flatMap((message) =>
         message.references.map((reference, position) => ({
           messageId: message.id,
           position,
           reference,
         })),
       );
-      const addressRows = fixture.messages.flatMap((message) => {
+      const addressRows = encodedFixture.messages.flatMap((message) => {
         const addressGroups = [
           ["from", [message.from]],
           ["reply-to", message.replyTo],
@@ -103,14 +104,14 @@ export const seedMailFixture = Effect.fn("Mail.seedMailFixture")(function* (
           })),
         );
       });
-      const mailboxRows = fixture.messages.flatMap((message) =>
+      const mailboxRows = encodedFixture.messages.flatMap((message) =>
         message.mailboxIds.map((mailboxId) => ({ messageId: message.id, mailboxId })),
       );
-      const attachmentRows = fixture.messages.flatMap((message) => message.attachments);
+      const attachmentRows = encodedFixture.messages.flatMap((message) => message.attachments);
 
-      yield* insertRows("accounts", fixture.accounts);
-      yield* insertRows("mailboxes", fixture.mailboxes);
-      yield* insertRows("threads", fixture.threads);
+      yield* insertRows("accounts", encodedFixture.accounts);
+      yield* insertRows("mailboxes", encodedFixture.mailboxes);
+      yield* insertRows("threads", encodedFixture.threads);
       yield* insertRows("messages", messageRows);
       yield* insertRows("messageReferences", referenceRows);
       yield* insertRows("messageAddresses", addressRows);

@@ -8,19 +8,20 @@ export const ClientHello = Schema.TaggedStruct("MosaicClientHello", {
 
 export type ClientHello = typeof ClientHello.Type;
 
-export const UtilityReady = Schema.TaggedStruct("MosaicUtilityReady", {
-  protocolVersion: Schema.Literal(PROTOCOL_VERSION),
+export const UtilityHandshakeResponse = Schema.TaggedUnion({
+  MosaicUtilityReady: {
+    protocolVersion: Schema.Literal(PROTOCOL_VERSION),
+  },
+  MosaicIncompatibleProtocol: {
+    expectedVersion: Schema.Literal(PROTOCOL_VERSION),
+    receivedVersion: Schema.Int,
+  },
 });
 
+export const {
+  MosaicUtilityReady: UtilityReady,
+  MosaicIncompatibleProtocol: IncompatibleProtocol,
+} = UtilityHandshakeResponse.cases;
 export type UtilityReady = typeof UtilityReady.Type;
-
-export const IncompatibleProtocol = Schema.TaggedStruct("MosaicIncompatibleProtocol", {
-  expectedVersion: Schema.Literal(PROTOCOL_VERSION),
-  receivedVersion: Schema.Int,
-});
-
 export type IncompatibleProtocol = typeof IncompatibleProtocol.Type;
-
-export const UtilityHandshakeResponse = Schema.Union([UtilityReady, IncompatibleProtocol]);
-
 export type UtilityHandshakeResponse = typeof UtilityHandshakeResponse.Type;

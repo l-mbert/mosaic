@@ -11,67 +11,57 @@ const Header = Schema.mutable(
 );
 const Headers = Schema.Array(Header).check(Schema.isMaxLength(64));
 
-const Request = Schema.TaggedStruct("Request", {
-  id: RequestId,
-  tag: FrameTag,
-  payload: Schema.Unknown,
-  headers: Headers,
-  isNotification: Schema.optionalKey(Schema.Literal(true)),
-  traceId: Schema.optionalKey(TraceIdentifier),
-  spanId: Schema.optionalKey(TraceIdentifier),
-  sampled: Schema.optionalKey(Schema.Boolean),
+export const BackendRpcClientFrame = Schema.TaggedUnion({
+  Request: {
+    id: RequestId,
+    tag: FrameTag,
+    payload: Schema.Unknown,
+    headers: Headers,
+    isNotification: Schema.optionalKey(Schema.Literal(true)),
+    traceId: Schema.optionalKey(TraceIdentifier),
+    spanId: Schema.optionalKey(TraceIdentifier),
+    sampled: Schema.optionalKey(Schema.Boolean),
+  },
+  Ack: { requestId: RequestId },
+  Interrupt: { requestId: RequestId },
+  Ping: {},
+  Eof: {},
 });
-
-const Ack = Schema.TaggedStruct("Ack", {
-  requestId: RequestId,
-});
-
-const Interrupt = Schema.TaggedStruct("Interrupt", {
-  requestId: RequestId,
-});
-
-const Ping = Schema.TaggedStruct("Ping", {});
-const Eof = Schema.TaggedStruct("Eof", {});
-
-export const BackendRpcClientFrame = Schema.Union([Request, Ack, Interrupt, Ping, Eof]);
 
 export type BackendRpcClientFrame = typeof BackendRpcClientFrame.Type;
 
-const Chunk = Schema.TaggedStruct("Chunk", {
-  requestId: RequestId,
-  values: Schema.NonEmptyArray(Schema.Unknown),
-});
-
-const FailureCause = Schema.Union([
-  Schema.TaggedStruct("Fail", {
+const FailureCause = Schema.TaggedUnion({
+  Fail: {
     error: Schema.Unknown,
-  }),
-  Schema.TaggedStruct("Die", {
+  },
+  Die: {
     defect: Schema.Unknown,
-  }),
-  Schema.TaggedStruct("Interrupt", {
+  },
+  Interrupt: {
     fiberId: Schema.UndefinedOr(Schema.Number),
-  }),
-]);
-
-const Exit = Schema.TaggedStruct("Exit", {
-  requestId: RequestId,
-  exit: Schema.Union([
-    Schema.TaggedStruct("Success", {
-      value: Schema.Unknown,
-    }),
-    Schema.TaggedStruct("Failure", {
-      cause: Schema.Array(FailureCause),
-    }),
-  ]),
+  },
 });
 
-const Defect = Schema.TaggedStruct("Defect", {
-  defect: Schema.Unknown,
+const RpcExit = Schema.TaggedUnion({
+  Success: {
+    value: Schema.Unknown,
+  },
+  Failure: {
+    cause: Schema.Array(FailureCause),
+  },
 });
 
-const Pong = Schema.TaggedStruct("Pong", {});
-
-export const BackendRpcServerFrame = Schema.Union([Chunk, Exit, Defect, Pong]);
+export const BackendRpcServerFrame = Schema.TaggedUnion({
+  Chunk: {
+    requestId: RequestId,
+    values: Schema.NonEmptyArray(Schema.Unknown),
+  },
+  Exit: {
+    requestId: RequestId,
+    exit: RpcExit,
+  },
+  Defect: { defect: Schema.Unknown },
+  Pong: {},
+});
 
 export type BackendRpcServerFrame = typeof BackendRpcServerFrame.Type;

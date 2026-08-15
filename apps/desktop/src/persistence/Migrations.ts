@@ -15,18 +15,17 @@ import strictStoredMailTypesSql from "./Migrations/007_StrictStoredMailTypes.sql
 import storedMailBoundsSql from "./Migrations/008_StoredMailBounds.sql?raw";
 import { toSearchableText } from "./SearchText.ts";
 
-const makeSqlMigration = (source: string) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const statements = source
-      .split("-- statement-breakpoint")
-      .map((statement) => statement.trim())
-      .filter((statement) => statement.length > 0);
+const makeSqlMigration = Effect.fn("Database.executeMigrationSql")(function* (source: string) {
+  const sql = yield* SqlClient.SqlClient;
+  const statements = source
+    .split("-- statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.length > 0);
 
-    for (const statement of statements) {
-      yield* sql.unsafe(statement);
-    }
-  });
+  for (const statement of statements) {
+    yield* sql.unsafe(statement);
+  }
+});
 
 const SearchBodyRow = Schema.Struct({
   id: Schema.NonEmptyString,

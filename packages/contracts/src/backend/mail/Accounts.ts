@@ -17,7 +17,7 @@ export const AccountSummary = Schema.Struct({
 export type AccountSummary = typeof AccountSummary.Type;
 
 export const ListAccounts = Rpc.make("ListAccounts", {
-  payload: Schema.Struct({}),
+  payload: {},
   success: Schema.Array(AccountSummary),
   error: BackendMailError,
 });

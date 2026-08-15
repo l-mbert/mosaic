@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 
 import { MailAddress } from "./Addresses.ts";
 import { AccountId, AttachmentId, MailboxId, MessageId, ThreadId } from "./Ids.ts";
-import { UtcTimestamp } from "./Timestamps.ts";
 
 export const SanitizedHtml = Schema.String.pipe(Schema.brand("SanitizedHtml"));
 export type SanitizedHtml = typeof SanitizedHtml.Type;
@@ -29,8 +28,8 @@ export const MailMessage = Schema.Struct({
   inReplyTo: Schema.NullOr(Schema.String),
   references: Schema.Array(Schema.String),
   subject: Schema.String,
-  sentAt: UtcTimestamp,
-  receivedAt: UtcTimestamp,
+  sentAt: Schema.DateTimeUtcFromString,
+  receivedAt: Schema.DateTimeUtcFromString,
   from: MailAddress,
   replyTo: Schema.Array(MailAddress),
   to: Schema.Array(MailAddress),
