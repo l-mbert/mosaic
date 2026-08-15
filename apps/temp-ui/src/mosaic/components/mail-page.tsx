@@ -2,13 +2,11 @@ import { ArchiveIcon, ChevronDownIcon, ClockIcon, SearchIcon, SparklesIcon } fro
 
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { allPlugins, collect } from "../plugins";
 import type { Message, Tab } from "../types";
-import { MessagePeek } from "./message-peek";
 import { PluginDot } from "./primitives";
 import { Sidebar } from "./sidebar";
 
@@ -16,108 +14,92 @@ function MessageRow({
   message,
   highlighted,
   onOpen,
-  onHighlight,
+  onEnter,
 }: {
   message: Message;
   highlighted: boolean;
   onOpen: () => void;
-  onHighlight: () => void;
+  onEnter: (message: Message, event: { clientX: number; clientY: number }) => void;
 }) {
   const badges = collect("listBadge", message);
 
   return (
-    /*
-     * The row's hit overlay doubles as the peek trigger, so hovering anywhere on
-     * the row raises the preview and clicking anywhere opens the message.
-     */
-    <HoverCard>
-      <div
-        onMouseEnter={onHighlight}
-        className={cn(
-          "group relative isolate flex h-10 items-center gap-3 rounded-lg px-3",
-          highlighted ? "bg-black/4" : null,
-        )}
+    <div
+      onMouseEnter={(event) => onEnter(message, event)}
+      className={cn(
+        "group relative isolate flex h-10 items-center gap-3 rounded-lg px-3",
+        highlighted ? "bg-black/4" : null,
+      )}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="absolute inset-0 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
       >
-        <HoverCardTrigger
-          delay={450}
-          closeDelay={80}
-          render={
-            <button
-              type="button"
-              onClick={onOpen}
-              className="absolute inset-0 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-            />
-          }
-        >
-          <span className="sr-only">
-            {message.from.name}: {message.subject}
-          </span>
-        </HoverCardTrigger>
+        <span className="sr-only">
+          {message.from.name}: {message.subject}
+        </span>
+      </button>
 
-        <span
-          aria-hidden
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none size-1.5 shrink-0 rounded-full",
+          message.unread ? "bg-foreground" : "bg-transparent",
+        )}
+      />
+
+      <div className="pointer-events-none flex w-40 shrink-0 items-baseline gap-1.5">
+        <div
           className={cn(
-            "pointer-events-none size-1.5 shrink-0 rounded-full",
-            message.unread ? "bg-foreground" : "bg-transparent",
+            "min-w-0 truncate text-[0.8125rem]",
+            message.unread ? "font-semibold" : "text-muted-foreground",
           )}
-        />
-
-        <div className="pointer-events-none flex w-40 shrink-0 items-baseline gap-1.5">
-          <div
-            className={cn(
-              "min-w-0 truncate text-[0.8125rem]",
-              message.unread ? "font-semibold" : "text-muted-foreground",
-            )}
-          >
-            {message.from.name}
-          </div>
-          {message.threadCount ? (
-            <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {message.threadCount}
-            </div>
-          ) : null}
+        >
+          {message.from.name}
         </div>
-
-        <div className="pointer-events-none flex min-w-0 flex-1 items-baseline gap-1.5">
-          {message.gist ? (
-            <SparklesIcon className="size-3 shrink-0 self-center text-tone-ai" />
-          ) : null}
-          <div className="min-w-0 flex-1 truncate text-[0.8125rem]">
-            <span className={cn(message.unread ? "font-medium" : "text-muted-foreground")}>
-              {message.subject}
-            </span>
-            <span className="text-muted-foreground">
-              {" — "}
-              {message.gist ?? message.preview}
-            </span>
+        {message.threadCount ? (
+          <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {message.threadCount}
           </div>
-        </div>
+        ) : null}
+      </div>
 
-        {badges.map(({ plugin, node }) => (
-          <span key={plugin.id} className="pointer-events-none">
-            {node}
+      <div className="pointer-events-none flex min-w-0 flex-1 items-baseline gap-1.5">
+        {message.gist ? (
+          <SparklesIcon className="size-3 shrink-0 self-center text-tone-ai" />
+        ) : null}
+        <div className="min-w-0 flex-1 truncate text-[0.8125rem]">
+          <span className={cn(message.unread ? "font-medium" : "text-muted-foreground")}>
+            {message.subject}
           </span>
-        ))}
-
-        <div className="pointer-events-none relative flex w-12 shrink-0 justify-end">
-          <span className="text-xs text-muted-foreground tabular-nums group-hover:invisible">
-            {message.time}
+          <span className="text-muted-foreground">
+            {" — "}
+            {message.gist ?? message.preview}
           </span>
-          <div className="pointer-events-auto absolute inset-y-0 right-0 hidden items-center gap-0.5 group-hover:flex">
-            <Button variant="ghost" size="icon-xs" aria-label="Archive">
-              <ArchiveIcon />
-            </Button>
-            <Button variant="ghost" size="icon-xs" aria-label="Snooze until later">
-              <ClockIcon />
-            </Button>
-          </div>
         </div>
       </div>
 
-      <HoverCardContent side="right" align="start" sideOffset={8} className="w-80">
-        <MessagePeek message={message} />
-      </HoverCardContent>
-    </HoverCard>
+      {badges.map(({ plugin, node }) => (
+        <span key={plugin.id} className="pointer-events-none">
+          {node}
+        </span>
+      ))}
+
+      <div className="pointer-events-none relative flex w-12 shrink-0 justify-end">
+        <span className="text-xs text-muted-foreground tabular-nums group-hover:invisible">
+          {message.time}
+        </span>
+        <div className="pointer-events-auto absolute inset-y-0 right-0 hidden items-center gap-0.5 group-hover:flex">
+          <Button variant="ghost" size="icon-xs" aria-label="Archive">
+            <ArchiveIcon />
+          </Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Snooze until later">
+            <ClockIcon />
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -138,6 +120,8 @@ export function MailPage({
   onHighlight,
   onOpen,
   onOpenFolder,
+  onPeek,
+  onPeekLeave,
 }: {
   title: string;
   activeFolderId: string;
@@ -146,6 +130,8 @@ export function MailPage({
   onHighlight: (id: string) => void;
   onOpen: (message: Message) => void;
   onOpenFolder: (tab: Tab) => void;
+  onPeek: (message: Message, event: { clientX: number; clientY: number }) => void;
+  onPeekLeave: () => void;
 }) {
   const filters = allPlugins.flatMap((plugin) =>
     (plugin.filters ?? []).map((filter) => ({ plugin, filter })),
@@ -187,27 +173,37 @@ export function MailPage({
               </div>
             </div>
 
-            {buckets.map((bucket) => {
-              const rows = messages.filter((message) => message.bucket === bucket.key);
-              if (rows.length === 0) return null;
-              return (
-                <section key={bucket.key} className="flex flex-col gap-1">
-                  <div className="flex h-7 items-center gap-2 px-3">
-                    <div className="text-xs font-medium text-muted-foreground">{bucket.label}</div>
-                    <div className="text-xs text-muted-foreground tabular-nums">{rows.length}</div>
-                  </div>
-                  {rows.map((message) => (
-                    <MessageRow
-                      key={message.id}
-                      message={message}
-                      highlighted={message.id === highlightedId}
-                      onHighlight={() => onHighlight(message.id)}
-                      onOpen={() => onOpen(message)}
-                    />
-                  ))}
-                </section>
-              );
-            })}
+            {/* Leaving the rows closes the card; moving between them does not. */}
+            <div className="flex flex-col gap-8" onMouseLeave={onPeekLeave}>
+              {buckets.map((bucket) => {
+                const rows = messages.filter((message) => message.bucket === bucket.key);
+                if (rows.length === 0) return null;
+                return (
+                  <section key={bucket.key} className="flex flex-col gap-1">
+                    <div className="flex h-7 items-center gap-2 px-3">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {bucket.label}
+                      </div>
+                      <div className="text-xs text-muted-foreground tabular-nums">
+                        {rows.length}
+                      </div>
+                    </div>
+                    {rows.map((message) => (
+                      <MessageRow
+                        key={message.id}
+                        message={message}
+                        highlighted={message.id === highlightedId}
+                        onEnter={(m, event) => {
+                          onHighlight(m.id);
+                          onPeek(m, event);
+                        }}
+                        onOpen={() => onOpen(message)}
+                      />
+                    ))}
+                  </section>
+                );
+              })}
+            </div>
           </div>
         </ScrollArea>
       </div>

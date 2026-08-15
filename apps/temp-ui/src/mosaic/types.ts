@@ -78,6 +78,12 @@ export interface Plugin {
   readerReplace?: (message: Message) => ReactNode;
   /** Stitched context below the mail. */
   readerBelow?: (message: Message) => ReactNode;
+  /**
+   * A reduced form for the hover peek. The peek follows the pointer, so it can
+   * never take a click — anything with a button in it must be restated here
+   * without one. Falls back to the reader panels when a plugin skips this.
+   */
+  peek?: (message: Message) => ReactNode;
 
   // ---- composer slots ---------------------------------------------------
   /** Offered only while the draft is empty. */

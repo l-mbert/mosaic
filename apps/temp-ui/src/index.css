@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+/* The package's default entry declares the upright faces only. Without this,
+   the browser shears the roman to fake an italic and the sloped glyphs run
+   into whatever follows them. */
+@import "@fontsource-variable/geist/wght-italic.css";
 
 @custom-variant dark (&:is(.dark *));
 

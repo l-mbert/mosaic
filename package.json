@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r build",
-    "dev": "vp run temp-ui#dev"
+    "db:seed": "pnpm --dir apps/desktop db:seed",
+    "dev": "vp run --filter @mosaic/desktop --filter @mosaic/renderer --parallel dev",
+    "dev:temp-ui": "vp run temp-ui#dev"
   },
   "devDependencies": {
+    "@oxlint/plugins": "catalog:",
+    "oxlint": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {

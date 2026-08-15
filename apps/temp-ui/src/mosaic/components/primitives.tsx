@@ -2,12 +2,12 @@ import type { Tone } from "../types";
 import { cn } from "@/lib/utils";
 
 /** Four hues, all at badge scale. Structure is white, neutral, or a hairline. */
-const toneBg: Record<Tone, string> = {
+const toneBg = {
   neutral: "bg-tone-neutral",
   deal: "bg-tone-deal",
   esign: "bg-tone-esign",
   ai: "bg-tone-ai",
-};
+} satisfies Record<Tone, string>;
 
 /** Marks anything a plugin put on screen, so its origin is never a guess. */
 export function PluginDot({

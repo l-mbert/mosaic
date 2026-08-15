@@ -19,22 +19,22 @@ import { PluginDot } from "./primitives";
  * A recognised fragment. It uses a popover rather than a tooltip on purpose —
  * the surface carries an action, and a tooltip cannot hold interactive content.
  */
-function EntitySpan({ span }: { span: Span & { entity: Entity } }) {
+function EntitySpan({ text, entity }: { text: string; entity: Entity }) {
   return (
     <Popover>
       {/* nativeButton={false}: an entity is a fragment of a sentence, so it has
           to stay an inline span rather than become a button inside a paragraph. */}
-      <PopoverTrigger nativeButton={false} render={<span className="entity">{span.text}</span>} />
+      <PopoverTrigger nativeButton={false} render={<span className="entity">{text}</span>} />
       <PopoverContent align="start" className="w-64">
         <PopoverHeader>
           <PopoverTitle className="flex items-center gap-1.5 text-xs">
-            <PluginDot tone={registry[span.entity.plugin].tone} />
-            {registry[span.entity.plugin].name}
+            <PluginDot tone={registry[entity.plugin].tone} />
+            {registry[entity.plugin].name}
           </PopoverTitle>
-          <PopoverDescription className="text-xs">{span.entity.label}</PopoverDescription>
+          <PopoverDescription className="text-xs">{entity.label}</PopoverDescription>
         </PopoverHeader>
         <Button variant="outline" size="sm" className="w-full">
-          {span.entity.action}
+          {entity.action}
         </Button>
       </PopoverContent>
     </Popover>
@@ -46,7 +46,7 @@ function Spans({ spans }: { spans: Span[] }) {
     <>
       {spans.map((span, i) =>
         span.entity ? (
-          <EntitySpan key={i} span={span as Span & { entity: Entity }} />
+          <EntitySpan key={i} text={span.text} entity={span.entity} />
         ) : (
           <span key={i}>{span.text}</span>
         ),
