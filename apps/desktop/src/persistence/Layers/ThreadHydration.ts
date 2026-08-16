@@ -1,10 +1,4 @@
-import {
-  AccountId,
-  MailAddress,
-  MailboxId,
-  MessageId,
-  ThreadId,
-} from "@mosaic/contracts/backend/mail";
+import { AccountId, Address, MailboxId, MessageId, ThreadId } from "@mosaic/contracts/backend/mail";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -46,7 +40,7 @@ export const AddressRow = Schema.Struct({
   messageId: MessageId,
   role: Schema.Literals(["from", "reply-to", "to", "cc", "bcc"]),
   name: Schema.NullOr(Schema.String),
-  address: MailAddress.fields.address,
+  address: Address.fields.address,
 });
 
 export const MessageMailboxRow = Schema.Struct({
@@ -71,7 +65,7 @@ export const assembleThreadDetail = Effect.fn("ThreadRepository.assembleThreadDe
 
   const addresses = new Map<
     MessageId,
-    Record<"from" | "reply-to" | "to" | "cc" | "bcc", Array<MailAddress>>
+    Record<"from" | "reply-to" | "to" | "cc" | "bcc", Array<Address>>
   >();
   for (const row of addressRows) {
     const values = addresses.get(row.messageId) ?? {
@@ -81,7 +75,7 @@ export const assembleThreadDetail = Effect.fn("ThreadRepository.assembleThreadDe
       cc: [],
       bcc: [],
     };
-    values[row.role].push(MailAddress.make({ name: row.name, address: row.address }));
+    values[row.role].push(Address.make({ name: row.name, address: row.address }));
     addresses.set(row.messageId, values);
   }
 

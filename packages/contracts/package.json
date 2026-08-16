@@ -6,23 +6,20 @@
   "exports": {
     "./backend": "./src/backend/Backend.ts",
     "./backend/health": "./src/backend/HealthCheck.ts",
-    "./backend/mail": "./src/backend/mail/Mail.ts",
+    "./backend/mail": "./src/backend/mail/index.ts",
     "./desktop": "./src/desktop/Lifecycle.ts",
     "./rpc/handshake": "./src/rpc/Handshake.ts",
     "./rpc/transport": "./src/rpc/Transport.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "vp test run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "typescript": "catalog:"
   }
 }

@@ -1,4 +1,4 @@
-import { AccountId, MailAddress, ThreadId, ThreadSummary } from "@mosaic/contracts/backend/mail";
+import { AccountId, Address, ThreadId, ThreadSummary } from "@mosaic/contracts/backend/mail";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -20,14 +20,14 @@ export type ThreadSummaryRow = typeof ThreadSummaryRow.Type;
 const ParticipantRow = Schema.Struct({
   threadId: ThreadId,
   name: Schema.NullOr(Schema.String),
-  address: MailAddress.fields.address,
+  address: Address.fields.address,
 });
 
 export const loadParticipants = Effect.fn("ThreadRepository.loadParticipants")(function* (
   sql: SqlClient.SqlClient,
   threadIds: ReadonlyArray<ThreadId>,
 ) {
-  const participants = new Map<ThreadId, Array<MailAddress>>();
+  const participants = new Map<ThreadId, Array<Address>>();
   if (threadIds.length === 0) return participants;
 
   const rows = yield* sql<typeof ParticipantRow.Type>`
@@ -75,7 +75,7 @@ export const loadParticipants = Effect.fn("ThreadRepository.loadParticipants")(f
 
   for (const row of rows) {
     const values = participants.get(row.threadId) ?? [];
-    values.push(MailAddress.make({ name: row.name, address: row.address }));
+    values.push(Address.make({ name: row.name, address: row.address }));
     participants.set(row.threadId, values);
   }
 
@@ -84,7 +84,7 @@ export const loadParticipants = Effect.fn("ThreadRepository.loadParticipants")(f
 
 export const toThreadSummary = (
   row: ThreadSummaryRow,
-  participants: ReadonlyMap<ThreadId, ReadonlyArray<MailAddress>>,
+  participants: ReadonlyMap<ThreadId, ReadonlyArray<Address>>,
 ) =>
   ThreadSummary.make({
     id: row.id,

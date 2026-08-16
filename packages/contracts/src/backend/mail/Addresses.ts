@@ -5,8 +5,8 @@ export const EmailAddress = Schema.Trim.check(Schema.isMinLength(1)).pipe(
 );
 export type EmailAddress = typeof EmailAddress.Type;
 
-export const MailAddress = Schema.Struct({
+export const Address = Schema.Struct({
   name: Schema.NullOr(Schema.String),
   address: EmailAddress,
 });
-export type MailAddress = typeof MailAddress.Type;
+export type Address = typeof Address.Type;

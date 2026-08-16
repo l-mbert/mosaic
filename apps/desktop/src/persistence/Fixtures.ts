@@ -2,7 +2,7 @@ import {
   AccountId,
   AttachmentId,
   EmailAddress,
-  MailAddress,
+  Address,
   MailboxId,
   MessageId,
   ThreadId,
@@ -28,7 +28,7 @@ export const MailFixture = Schema.Struct({
 export type MailFixture = typeof MailFixture.Type;
 
 const utcTimestamp = DateTime.makeUnsafe;
-const lambert = MailAddress.make({
+const lambert = Address.make({
   name: "Lambert",
   address: EmailAddress.make("lambert@example.com"),
 });
@@ -231,7 +231,7 @@ const messages = [
     subject: "Q3 annual report",
     sentAt: utcTimestamp("2026-08-10T08:29:00.000Z"),
     receivedAt: utcTimestamp("2026-08-10T08:30:00.000Z"),
-    from: MailAddress.make({
+    from: Address.make({
       name: "Ava Chen",
       address: EmailAddress.make("ava@northstar.test"),
     }),
@@ -280,7 +280,7 @@ const messages = [
     from: lambert,
     replyTo: [],
     to: [
-      MailAddress.make({
+      Address.make({
         name: "Ava Chen",
         address: EmailAddress.make("ava@northstar.test"),
       }),
@@ -313,19 +313,19 @@ const messages = [
     subject: "Desktop navigation review",
     sentAt: utcTimestamp("2026-08-11T12:58:00.000Z"),
     receivedAt: utcTimestamp("2026-08-11T13:00:00.000Z"),
-    from: MailAddress.make({
+    from: Address.make({
       name: "Mira Patel",
       address: EmailAddress.make("mira@mosaic.test"),
     }),
     replyTo: [],
     to: [
-      MailAddress.make({
+      Address.make({
         name: "Lambert",
         address: EmailAddress.make("lambert@mosaic.test"),
       }),
     ],
     cc: [
-      MailAddress.make({
+      Address.make({
         name: "Product",
         address: EmailAddress.make("product@mosaic.test"),
       }),
@@ -369,13 +369,13 @@ const messages = [
     subject: "SQLite migration plan",
     sentAt: utcTimestamp("2026-08-12T07:43:00.000Z"),
     receivedAt: utcTimestamp("2026-08-12T07:45:00.000Z"),
-    from: MailAddress.make({
+    from: Address.make({
       name: "Noah Williams",
       address: EmailAddress.make("noah@atelier.test"),
     }),
     replyTo: [],
     to: [
-      MailAddress.make({
+      Address.make({
         name: "Lambert",
         address: EmailAddress.make("lambert@fastmail.test"),
       }),
@@ -408,13 +408,13 @@ const messages = [
     subject: "Re: SQLite migration plan",
     sentAt: utcTimestamp("2026-08-12T09:20:00.000Z"),
     receivedAt: utcTimestamp("2026-08-12T09:20:00.000Z"),
-    from: MailAddress.make({
+    from: Address.make({
       name: "Lambert",
       address: EmailAddress.make("lambert@fastmail.test"),
     }),
     replyTo: [],
     to: [
-      MailAddress.make({
+      Address.make({
         name: "Noah Williams",
         address: EmailAddress.make("noah@atelier.test"),
       }),
@@ -447,13 +447,13 @@ const messages = [
     subject: "The local-first dispatch",
     sentAt: utcTimestamp("2026-08-09T05:58:00.000Z"),
     receivedAt: utcTimestamp("2026-08-09T06:00:00.000Z"),
-    from: MailAddress.make({
+    from: Address.make({
       name: "Local First",
       address: EmailAddress.make("dispatch@localfirst.test"),
     }),
     replyTo: [],
     to: [
-      MailAddress.make({
+      Address.make({
         name: null,
         address: EmailAddress.make("lambert@fastmail.test"),
       }),

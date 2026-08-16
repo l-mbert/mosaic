@@ -1,27 +1,27 @@
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 
-import { MailAddress } from "./Addresses.ts";
-import { BackendMailError } from "./Errors.ts";
+import { Address } from "./Addresses.ts";
+import { NotFoundError, StorageError } from "./Errors.ts";
 import { AccountId, ThreadId } from "./Ids.ts";
-import { MailMessage } from "./Messages.ts";
+import { Message } from "./Messages.ts";
 import { PageLimit } from "./Pagination.ts";
 import { ThreadScope } from "./ThreadScope.ts";
 
-export const MailThread = Schema.Struct({
+export const Thread = Schema.Struct({
   id: ThreadId,
   accountId: AccountId,
   subject: Schema.String,
   createdAt: Schema.DateTimeUtcFromString,
   updatedAt: Schema.DateTimeUtcFromString,
 });
-export type MailThread = typeof MailThread.Type;
+export type Thread = typeof Thread.Type;
 
 export const ThreadSummary = Schema.Struct({
   id: ThreadId,
   accountId: AccountId,
   subject: Schema.String,
-  participants: Schema.Array(MailAddress),
+  participants: Schema.Array(Address),
   preview: Schema.String,
   lastMessageAt: Schema.DateTimeUtcFromString,
   messageCount: Schema.Natural,
@@ -31,8 +31,8 @@ export const ThreadSummary = Schema.Struct({
 export type ThreadSummary = typeof ThreadSummary.Type;
 
 export const ThreadDetail = Schema.Struct({
-  thread: MailThread,
-  messages: Schema.Array(MailMessage),
+  thread: Thread,
+  messages: Schema.Array(Message),
 });
 export type ThreadDetail = typeof ThreadDetail.Type;
 
@@ -55,11 +55,11 @@ export const QueryThreads = Rpc.make("QueryThreads", {
     cursor: Schema.NullOr(ThreadPageCursor),
   },
   success: ThreadPage,
-  error: BackendMailError,
+  error: StorageError,
 });
 
 export const ReadThread = Rpc.make("ReadThread", {
   payload: { threadId: ThreadId },
   success: ThreadDetail,
-  error: BackendMailError,
+  error: Schema.Union([NotFoundError, StorageError]),
 });

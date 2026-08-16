@@ -1,26 +1,13 @@
 import * as Schema from "effect/Schema";
 
-import { MailAddress } from "./Addresses.ts";
-import { AccountId, AttachmentId, MailboxId, MessageId, ThreadId } from "./Ids.ts";
+import { Address } from "./Addresses.ts";
+import { Attachment } from "./Attachments.ts";
+import { AccountId, MailboxId, MessageId, ThreadId } from "./Ids.ts";
 
 export const SanitizedHtml = Schema.String.pipe(Schema.brand("SanitizedHtml"));
 export type SanitizedHtml = typeof SanitizedHtml.Type;
 
-export const AttachmentDisposition = Schema.Literals(["attachment", "inline"]);
-export type AttachmentDisposition = typeof AttachmentDisposition.Type;
-
-export const Attachment = Schema.Struct({
-  id: AttachmentId,
-  messageId: MessageId,
-  filename: Schema.NullOr(Schema.String),
-  mediaType: Schema.NonEmptyString,
-  sizeBytes: Schema.Natural,
-  contentId: Schema.NullOr(Schema.String),
-  disposition: AttachmentDisposition,
-});
-export type Attachment = typeof Attachment.Type;
-
-export const MailMessage = Schema.Struct({
+export const Message = Schema.Struct({
   id: MessageId,
   accountId: AccountId,
   threadId: ThreadId,
@@ -30,11 +17,11 @@ export const MailMessage = Schema.Struct({
   subject: Schema.String,
   sentAt: Schema.DateTimeUtcFromString,
   receivedAt: Schema.DateTimeUtcFromString,
-  from: MailAddress,
-  replyTo: Schema.Array(MailAddress),
-  to: Schema.Array(MailAddress),
-  cc: Schema.Array(MailAddress),
-  bcc: Schema.Array(MailAddress),
+  from: Address,
+  replyTo: Schema.Array(Address),
+  to: Schema.Array(Address),
+  cc: Schema.Array(Address),
+  bcc: Schema.Array(Address),
   preview: Schema.String,
   body: Schema.Struct({
     text: Schema.NullOr(Schema.String),
@@ -47,4 +34,4 @@ export const MailMessage = Schema.Struct({
   mailboxIds: Schema.Array(MailboxId),
   attachments: Schema.Array(Attachment),
 });
-export type MailMessage = typeof MailMessage.Type;
+export type Message = typeof Message.Type;

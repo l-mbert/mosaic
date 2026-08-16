@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 
 import { EmailAddress } from "./Addresses.ts";
-import { BackendMailError } from "./Errors.ts";
+import { StorageError } from "./Errors.ts";
 import { AccountId } from "./Ids.ts";
 
 export const ProviderKind = Schema.Literals(["gmail", "microsoft-graph", "imap"]);
@@ -19,5 +19,5 @@ export type AccountSummary = typeof AccountSummary.Type;
 export const ListAccounts = Rpc.make("ListAccounts", {
   payload: {},
   success: Schema.Array(AccountSummary),
-  error: BackendMailError,
+  error: StorageError,
 });

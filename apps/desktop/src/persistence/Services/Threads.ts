@@ -1,7 +1,7 @@
 import {
   Attachment,
-  MailMessage,
-  MailThread,
+  Message,
+  Thread,
   type ThreadScope,
   ThreadId,
   ThreadPage,
@@ -27,7 +27,7 @@ export const StoredAttachment = Schema.Struct({
 export type StoredAttachment = typeof StoredAttachment.Type;
 
 export const StoredMailMessage = Schema.Struct({
-  ...MailMessage.fields,
+  ...Message.fields,
   providerMessageId: Schema.NonEmptyString,
   body: Schema.Struct({
     text: Schema.NullOr(Schema.String),
@@ -39,7 +39,7 @@ export const StoredMailMessage = Schema.Struct({
 export type StoredMailMessage = typeof StoredMailMessage.Type;
 
 export const StoredThread = Schema.Struct({
-  ...MailThread.fields,
+  ...Thread.fields,
   providerThreadId: Schema.NullOr(Schema.NonEmptyString),
   threadingKind: ThreadingKind,
 });

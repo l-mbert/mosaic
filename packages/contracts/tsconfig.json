@@ -6,7 +6,7 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "target": "ESNext",
-    "types": ["node", "vite-plus/test/globals"]
+    "types": ["node"]
   },
   "include": ["src"]
 }

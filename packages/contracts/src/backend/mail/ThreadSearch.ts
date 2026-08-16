@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 
-import { BackendMailError } from "./Errors.ts";
+import { StorageError } from "./Errors.ts";
 import { MessageId } from "./Ids.ts";
 import { PageLimit } from "./Pagination.ts";
 import { ThreadScope } from "./ThreadScope.ts";
@@ -36,7 +36,7 @@ export const ThreadSearchPage = Schema.Struct({
 });
 export type ThreadSearchPage = typeof ThreadSearchPage.Type;
 
-export const SearchMail = Rpc.make("SearchMail", {
+export const SearchThreads = Rpc.make("SearchThreads", {
   payload: {
     scope: ThreadScope,
     query: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
@@ -44,5 +44,5 @@ export const SearchMail = Rpc.make("SearchMail", {
     cursor: Schema.NullOr(ThreadSearchCursor),
   },
   success: ThreadSearchPage,
-  error: BackendMailError,
+  error: StorageError,
 });
