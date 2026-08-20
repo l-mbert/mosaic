@@ -23,7 +23,7 @@ import { getDatabaseFilename } from "./DatabasePath.ts";
 import {
   UTILITY_HEALTHY_RESET_MS,
   UTILITY_BOOT_TIMEOUT_MS,
-  UTILITY_READY_TIMEOUT_MS,
+  UTILITY_READY_WARNING_MS,
   utilityRestartDecision,
 } from "./UtilityRestartPolicy.ts";
 
@@ -151,17 +151,18 @@ export const make = Effect.fn("UtilitySupervisor.make")(function* () {
             );
             yield* Deferred.succeed(initialBooted, undefined);
 
-            yield* Deferred.await(ready).pipe(
-              Effect.timeoutOrElse({
-                duration: UTILITY_READY_TIMEOUT_MS,
-                orElse: () =>
-                  Effect.fail(
-                    new UtilitySupervisorError({
-                      message: `The Mosaic utility process did not become ready within ${UTILITY_READY_TIMEOUT_MS}ms after booting.`,
-                    }),
-                  ),
-              }),
+            yield* Effect.sleep(UTILITY_READY_WARNING_MS).pipe(
+              Effect.andThen(
+                Effect.logWarning(
+                  "The Mosaic utility process is still preparing after its readiness warning threshold.",
+                ).pipe(
+                  Effect.annotateLogs({ pid: child.pid, warningMs: UTILITY_READY_WARNING_MS }),
+                ),
+              ),
+              Effect.raceFirst(Deferred.await(ready)),
+              Effect.forkScoped,
             );
+            yield* Deferred.await(ready);
             yield* Ref.set(activeChild, Option.some(child));
             const restarted = yield* Ref.getAndSet(everReady, true);
 

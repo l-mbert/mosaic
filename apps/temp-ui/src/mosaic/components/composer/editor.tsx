@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { $isLinkNode } from "@lexical/link";
-import {
-  $isListNode,
-  INSERT_UNORDERED_LIST_COMMAND,
-  REMOVE_LIST_COMMAND,
-} from "@lexical/list";
+import { $isListNode, INSERT_UNORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -157,12 +153,7 @@ export function FormatBar({ onLink }: { onLink: () => void }) {
         active={marks.italic}
         onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
       />
-      <Mark
-        label="Link"
-        icon={LinkIcon}
-        active={marks.link}
-        onClick={onLink}
-      />
+      <Mark label="Link" icon={LinkIcon} active={marks.link} onClick={onLink} />
       <Mark
         label="Bulleted list"
         icon={ListIcon}

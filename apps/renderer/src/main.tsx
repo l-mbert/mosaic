@@ -4,7 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 // Capture Electron's one-shot port transfer before any file route is loaded lazily.
-import "./backend/port.ts";
+import "./backend/client.ts";
 import { routeTree } from "./routeTree.gen.ts";
 import "./styles.css";
 

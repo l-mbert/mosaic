@@ -20,9 +20,20 @@ Electron.protocol.registerSchemesAsPrivileged([
 
 const waitForAppReady = Effect.promise(() => Electron.app.whenReady());
 
+let quittingAllowed = false;
+let quitRequested = false;
 const waitForQuit = Effect.callback<void>((resume) => {
-  const onQuit = () => resume(Effect.void);
-  Electron.app.once("will-quit", onQuit);
+  const onQuit = (event: Electron.Event) => {
+    if (quittingAllowed) {
+      return;
+    }
+    event.preventDefault();
+    if (!quitRequested) {
+      quitRequested = true;
+      resume(Effect.void);
+    }
+  };
+  Electron.app.on("will-quit", onQuit);
   return Effect.sync(() => Electron.app.off("will-quit", onQuit));
 });
 
@@ -83,6 +94,14 @@ const program = Effect.scoped(
     yield* mainWindow.ensure(connectRenderer);
     yield* waitForQuit;
   }),
-).pipe(Effect.provide(MainLive));
+).pipe(
+  Effect.provide(MainLive),
+  Effect.andThen(
+    Effect.sync(() => {
+      quittingAllowed = true;
+      setImmediate(() => Electron.app.quit());
+    }),
+  ),
+);
 
 NodeRuntime.runMain(program);

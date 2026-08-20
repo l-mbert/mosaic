@@ -37,8 +37,8 @@ export class MainWindow extends Context.Service<
             return "mosaic://app/";
           }
 
-          const url = new URL(developmentUrl);
-          if (url.protocol !== "http:" || url.hostname !== "127.0.0.1") {
+          const url = URL.parse(developmentUrl);
+          if (url === null || url.protocol !== "http:" || url.hostname !== "127.0.0.1") {
             throw new Error("The development renderer must use 127.0.0.1 over HTTP.");
           }
           return url.href;
@@ -81,8 +81,8 @@ export class MainWindow extends Context.Service<
       };
 
       const resolveRendererAsset = (requestUrl: string) => {
-        const url = new URL(requestUrl);
-        if (url.hostname !== "app") {
+        const url = URL.parse(requestUrl);
+        if (url === null || url.hostname !== "app") {
           return undefined;
         }
 
@@ -166,6 +166,14 @@ export class MainWindow extends Context.Service<
           }
         });
 
+        const discardWindow = Effect.sync(() => {
+          if (mainWindow === window) {
+            mainWindow = undefined;
+          }
+          if (!window.isDestroyed()) {
+            window.destroy();
+          }
+        });
         yield* Effect.tryPromise({
           try: () => window.loadURL(applicationUrl),
           catch: (cause) =>
@@ -173,14 +181,15 @@ export class MainWindow extends Context.Service<
               message: "Could not load the Mosaic renderer.",
               cause,
             }),
-        });
+        }).pipe(Effect.tapError(() => discardWindow));
 
         return window;
       });
 
       const reload = Effect.sync(() => {
-        if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.reload();
+        const window = mainWindow;
+        if (window !== undefined && !window.isDestroyed() && !window.webContents.isLoading()) {
+          window.webContents.reload();
         }
       });
 

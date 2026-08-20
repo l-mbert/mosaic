@@ -76,34 +76,54 @@ export const browserBackendPortSource: BackendPortSource = {
 
 const receiveBackendPort = (source: BackendPortSource) =>
   Effect.callback<BackendMessagePort>((resume) => {
-    let removeListener = () => {};
+    let removeListener: (() => void) | undefined;
+    let cleanupPending = false;
+    const cleanup = () => {
+      if (removeListener === undefined) {
+        cleanupPending = true;
+      } else {
+        removeListener();
+      }
+    };
+
     removeListener = source.listen((message, ports) => {
       if (message !== BACKEND_PORT_MESSAGE || ports.length !== 1) {
         return;
       }
-      removeListener();
+      cleanup();
       resume(Effect.succeed(ports[0]));
     });
-    return Effect.sync(removeListener);
+    if (cleanupPending) cleanup();
+    return Effect.sync(cleanup);
   });
 
 const exchangeHandshake = (port: BackendMessagePort) =>
   Effect.callback<unknown, BackendPortOperationFailed>((resume) => {
-    let removeListener = () => {};
+    let removeListener: (() => void) | undefined;
+    let cleanupPending = false;
+    const cleanup = () => {
+      if (removeListener === undefined) {
+        cleanupPending = true;
+      } else {
+        removeListener();
+      }
+    };
+
     removeListener = port.listenMessage((message) => {
-      removeListener();
+      cleanup();
       resume(Effect.succeed(message));
     });
+    if (cleanupPending) cleanup();
 
     try {
       port.start();
       port.postMessage(ClientHello.make({ protocolVersion: PROTOCOL_VERSION }));
     } catch (cause) {
-      removeListener();
+      cleanup();
       resume(Effect.fail(new BackendPortOperationFailed({ cause })));
     }
 
-    return Effect.sync(removeListener);
+    return Effect.sync(cleanup);
   });
 
 export const acquireBackendPort = Effect.fn("acquireBackendPort")(function* (
