@@ -3,68 +3,179 @@ import {
   PROTOCOL_VERSION,
   UtilityHandshakeResponse,
 } from "@mosaic/contracts/rpc/handshake";
-import { Schema } from "effect";
+import { Effect, Exit, Schema, Scope } from "effect";
+import * as Match from "effect/Match";
 
 const BACKEND_PORT_MESSAGE = "MosaicBackendPort";
-const BOOTSTRAP_TIMEOUT_MS = 10_000;
+export const BOOTSTRAP_TIMEOUT_MS = 10_000;
 
-const receivedPort = new Promise<MessagePort>((resolve) => {
-  const onMessage = (event: MessageEvent) => {
-    if (event.data !== BACKEND_PORT_MESSAGE || event.ports.length !== 1) {
-      return;
-    }
+export interface BackendMessagePort {
+  listenMessage(listener: (message: typeof Schema.Unknown.Type) => void): () => void;
+  listenClose(listener: () => void): () => void;
+  start(): void;
+  postMessage(message: typeof Schema.Unknown.Type): void;
+  close(): void;
+}
 
-    window.removeEventListener("message", onMessage);
-    resolve(event.ports[0]);
-  };
+export interface BackendPortSource {
+  listen(
+    listener: (
+      message: typeof Schema.Unknown.Type,
+      ports: ReadonlyArray<BackendMessagePort>,
+    ) => void,
+  ): () => void;
+}
 
-  window.addEventListener("message", onMessage);
+export class BackendPortTransferTimedOut extends Schema.TaggedError<BackendPortTransferTimedOut>()(
+  "BackendPortTransferTimedOut",
+  {},
+) {}
+
+export class BackendHandshakeTimedOut extends Schema.TaggedError<BackendHandshakeTimedOut>()(
+  "BackendHandshakeTimedOut",
+  {},
+) {}
+
+export class BackendPortOperationFailed extends Schema.TaggedError<BackendPortOperationFailed>()(
+  "BackendPortOperationFailed",
+  { cause: Schema.Defect() },
+) {}
+
+export class BackendProtocolMismatch extends Schema.TaggedError<BackendProtocolMismatch>()(
+  "BackendProtocolMismatch",
+  {
+    rendererVersion: Schema.Int,
+    utilityVersion: Schema.Int,
+  },
+) {}
+
+const adaptMessagePort = (port: MessagePort): BackendMessagePort => ({
+  listenMessage: (listener) => {
+    const onMessage = (event: MessageEvent) => listener(event.data);
+    port.addEventListener("message", onMessage);
+    return () => port.removeEventListener("message", onMessage);
+  },
+  listenClose: (listener) => {
+    port.addEventListener("close", listener);
+    return () => port.removeEventListener("close", listener);
+  },
+  start: () => port.start(),
+  postMessage: (message) => port.postMessage(message),
+  close: () => port.close(),
 });
 
-const withTimeout = <Value>(promise: Promise<Value>, message: string) =>
-  new Promise<Value>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(message)), BOOTSTRAP_TIMEOUT_MS);
+export const browserBackendPortSource: BackendPortSource = {
+  listen: (listener) => {
+    const onMessage = (event: MessageEvent) => {
+      listener(event.data, event.ports.map(adaptMessagePort));
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  },
+};
 
-    void promise.then(
-      (value) => {
-        window.clearTimeout(timeout);
-        resolve(value);
-      },
-      (error) => {
-        window.clearTimeout(timeout);
-        reject(error);
-      },
-    );
-  });
-
-const receiveHandshake = (port: MessagePort) =>
-  new Promise<unknown>((resolve) => {
-    port.addEventListener("message", (event) => resolve(event.data), {
-      once: true,
+const receiveBackendPort = (source: BackendPortSource) =>
+  Effect.callback<BackendMessagePort>((resume) => {
+    let removeListener = () => {};
+    removeListener = source.listen((message, ports) => {
+      if (message !== BACKEND_PORT_MESSAGE || ports.length !== 1) {
+        return;
+      }
+      removeListener();
+      resume(Effect.succeed(ports[0]));
     });
+    return Effect.sync(removeListener);
   });
 
-export async function connectBackendPort(): Promise<MessagePort> {
-  const port = await withTimeout(receivedPort, "Electron did not provide the Mosaic backend port.");
-  const handshake = receiveHandshake(port);
+const exchangeHandshake = (port: BackendMessagePort) =>
+  Effect.callback<unknown, BackendPortOperationFailed>((resume) => {
+    let removeListener = () => {};
+    removeListener = port.listenMessage((message) => {
+      removeListener();
+      resume(Effect.succeed(message));
+    });
 
-  port.start();
-  port.postMessage(
-    ClientHello.make({
-      protocolVersion: PROTOCOL_VERSION,
+    try {
+      port.start();
+      port.postMessage(ClientHello.make({ protocolVersion: PROTOCOL_VERSION }));
+    } catch (cause) {
+      removeListener();
+      resume(Effect.fail(new BackendPortOperationFailed({ cause })));
+    }
+
+    return Effect.sync(removeListener);
+  });
+
+export const acquireBackendPort = Effect.fn("acquireBackendPort")(function* (
+  source: BackendPortSource,
+): Effect.fn.Return<
+  BackendMessagePort,
+  | BackendPortTransferTimedOut
+  | BackendHandshakeTimedOut
+  | BackendPortOperationFailed
+  | BackendProtocolMismatch
+  | Schema.SchemaError,
+  Scope.Scope
+> {
+  const owned = yield* Effect.uninterruptibleMask((restore) =>
+    Effect.gen(function* () {
+      const port = yield* restore(
+        receiveBackendPort(source).pipe(
+          Effect.timeoutOrElse({
+            duration: BOOTSTRAP_TIMEOUT_MS,
+            orElse: () => new BackendPortTransferTimedOut(),
+          }),
+        ),
+      );
+      let closed = false;
+      const close = Effect.sync(() => {
+        if (!closed) {
+          closed = true;
+          port.close();
+        }
+      });
+      yield* Effect.addFinalizer(() => close);
+      return { port, close };
     }),
   );
 
-  const response = await Schema.decodeUnknownPromise(UtilityHandshakeResponse)(
-    await withTimeout(handshake, "The Mosaic utility process did not complete its handshake."),
-  );
-
-  if (response._tag === "MosaicIncompatibleProtocol") {
-    port.close();
-    throw new Error(
-      `Mosaic protocol mismatch: renderer=${response.receivedVersion}, utility=${response.expectedVersion}.`,
+  yield* Effect.gen(function* () {
+    const response = yield* exchangeHandshake(owned.port).pipe(
+      Effect.timeoutOrElse({
+        duration: BOOTSTRAP_TIMEOUT_MS,
+        orElse: () => new BackendHandshakeTimedOut(),
+      }),
+      Effect.flatMap(Schema.decodeUnknownEffect(UtilityHandshakeResponse)),
     );
-  }
 
-  return port;
-}
+    yield* Match.value(response).pipe(
+      Match.tag("MosaicUtilityReady", () => Effect.void),
+      Match.tag("MosaicIncompatibleProtocol", ({ expectedVersion, receivedVersion }) =>
+        Effect.fail(
+          new BackendProtocolMismatch({
+            rendererVersion: receivedVersion,
+            utilityVersion: expectedVersion,
+          }),
+        ),
+      ),
+      Match.exhaustive,
+    );
+  }).pipe(Effect.onExit((exit) => (Exit.isFailure(exit) ? owned.close : Effect.void)));
+
+  return owned.port;
+});
+
+export const startEagerRuntime = <Value>(
+  initialize: () => Promise<Value>,
+  dispose: () => Promise<void>,
+) => {
+  const readiness = initialize();
+  void readiness.catch(() => undefined);
+
+  return {
+    readiness,
+    dispose: () => {
+      void dispose().catch(() => undefined);
+    },
+  };
+};

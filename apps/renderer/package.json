@@ -6,6 +6,7 @@
   "scripts": {
     "build": "vp build && tsc -b",
     "dev": "vp dev",
+    "test": "vp test run",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",

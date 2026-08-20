@@ -3,12 +3,14 @@ import { Effect, Schema } from "effect";
 import * as RpcClient from "effect/unstable/rpc/RpcClient";
 import { RpcClientDefect, RpcClientError } from "effect/unstable/rpc/RpcClientError";
 
+import type { BackendMessagePort } from "./port.ts";
+
 const protocolError = (message: string, cause?: unknown) =>
   new RpcClientError({
     reason: new RpcClientDefect({ message, cause }),
   });
 
-export const makeMessagePortClientProtocol = (port: MessagePort) =>
+export const makeMessagePortClientProtocol = (port: BackendMessagePort) =>
   RpcClient.Protocol.make(
     Effect.fnUntraced(function* (writeResponse) {
       const context = yield* Effect.context<never>();
@@ -28,15 +30,15 @@ export const makeMessagePortClientProtocol = (port: MessagePort) =>
         );
       };
 
-      const onMessage = (event: MessageEvent<unknown>) => {
+      const onMessage = (message: typeof Schema.Unknown.Type) => {
         const currentClientId = clientId;
         if (currentClientId === undefined) {
           return;
         }
 
         runFork(
-          Schema.decodeUnknownEffect(BackendRpcServerFrame)(event.data).pipe(
-            Effect.flatMap((message) => writeResponse(currentClientId, message)),
+          Schema.decodeUnknownEffect(BackendRpcServerFrame)(message).pipe(
+            Effect.flatMap((frame) => writeResponse(currentClientId, frame)),
             Effect.catch((error) =>
               writeResponse(currentClientId, {
                 _tag: "ClientProtocolError",
@@ -51,15 +53,14 @@ export const makeMessagePortClientProtocol = (port: MessagePort) =>
         failClient(protocolError("The utility process connection closed."));
       };
 
-      port.addEventListener("message", onMessage);
-      port.addEventListener("close", onClose);
+      const removeMessageListener = port.listenMessage(onMessage);
+      const removeCloseListener = port.listenClose(onClose);
       port.start();
 
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
-          port.removeEventListener("message", onMessage);
-          port.removeEventListener("close", onClose);
-          port.close();
+          removeMessageListener();
+          removeCloseListener();
         }),
       );
 
