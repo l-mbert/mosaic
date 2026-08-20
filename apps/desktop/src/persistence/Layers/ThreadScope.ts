@@ -16,13 +16,11 @@ export const makeThreadScopeCondition = (
     Match.tag("Account", ({ accountId }) => sql`${threadAccount} = ${accountId}`),
     Match.tag(
       "Mailbox",
-      ({ mailboxId }) => sql`EXISTS (
-        SELECT 1
-        FROM messages scope_messages
-        JOIN message_mailboxes scope_membership
-          ON scope_membership.message_id = scope_messages.id
-        WHERE scope_messages.thread_id = ${threadId}
-          AND scope_membership.mailbox_id = ${mailboxId}
+      ({ mailboxId }) => sql`${threadId} IN (
+        SELECT scope_messages.thread_id
+        FROM message_mailboxes scope_membership
+        JOIN messages scope_messages ON scope_messages.id = scope_membership.message_id
+        WHERE scope_membership.mailbox_id = ${mailboxId}
       )`,
     ),
     Match.exhaustive,

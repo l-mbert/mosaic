@@ -5,12 +5,15 @@ import { EmailAddress } from "./Addresses.ts";
 import { StorageError } from "./Errors.ts";
 import { AccountId } from "./Ids.ts";
 
-export const ProviderKind = Schema.Literals(["gmail", "microsoft-graph", "imap"]);
-export type ProviderKind = typeof ProviderKind.Type;
+export const ProviderDriverKind = Schema.NonEmptyString.check(
+  Schema.isMaxLength(64),
+  Schema.isPattern(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/),
+);
+export type ProviderDriverKind = typeof ProviderDriverKind.Type;
 
 export const AccountSummary = Schema.Struct({
   id: AccountId,
-  providerKind: ProviderKind,
+  providerKind: ProviderDriverKind,
   displayName: Schema.NullOr(Schema.String),
   emailAddress: EmailAddress,
 });

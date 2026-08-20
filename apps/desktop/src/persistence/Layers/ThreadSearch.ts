@@ -21,6 +21,7 @@ import { loadParticipants, ThreadSummaryRow, toThreadSummary } from "./ThreadSum
 
 const HIGHLIGHT_START = "\uE000";
 const HIGHLIGHT_END = "\uE001";
+const SEARCHABLE_COLUMNS = "{subject sender to_recipients cc_recipients bcc_recipients body}";
 
 const SearchRow = Schema.Struct({
   ...ThreadSummaryRow.fields,
@@ -34,7 +35,7 @@ export const compileFtsQuery = (query: string): string =>
     .trim()
     .split(/\s+/u)
     .filter((token) => token.length > 0)
-    .map((token) => `"${token.replaceAll('"', '""')}"*`)
+    .map((token) => `${SEARCHABLE_COLUMNS} : "${token.replaceAll('"', '""')}"*`)
     .join(" ");
 
 const parseHighlightedExcerpt = (marked: string) => {
@@ -92,7 +93,7 @@ const makeThreadSearchRepository = Effect.gen(function* () {
         SELECT
           messages.thread_id AS thread_id,
           messages.id AS message_id,
-          bm25(message_fts, 8.0, 5.0, 3.0, 1.0) AS rank,
+          bm25(message_fts, 0.0, 8.0, 5.0, 3.0, 2.0, 2.0, 1.0) AS rank,
           snippet(
             message_fts,
             -1,
@@ -102,7 +103,7 @@ const makeThreadSearchRepository = Effect.gen(function* () {
             24
           ) AS excerpt
         FROM message_fts
-        JOIN message_search indexed_messages ON indexed_messages.rowid = message_fts.rowid
+        JOIN message_search indexed_messages ON indexed_messages.id = message_fts.rowid
         JOIN messages ON messages.id = indexed_messages.message_id
         JOIN thread_summaries summaries
           ON summaries.id = messages.thread_id
