@@ -1,4 +1,3 @@
-import { BackendRpcs } from "@mosaic/contracts/backend";
 import { AttachRenderer } from "@mosaic/contracts/desktop";
 import {
   ClientHello,
@@ -8,8 +7,17 @@ import {
 } from "@mosaic/contracts/rpc/handshake";
 import { BackendRpcClientFrame } from "@mosaic/contracts/rpc/transport";
 import { Effect, Exit, FiberSet, Option, Queue, Result, Schema, Scope } from "effect";
+import * as Match from "effect/Match";
 import type { MessageEvent, MessagePortMain, ParentPort } from "electron";
 import * as RpcServer from "effect/unstable/rpc/RpcServer";
+
+import {
+  admitFrame,
+  FrameRejection,
+  type FrameRejection as FrameRejectionType,
+  makeOutstandingRequestTracker,
+  type OutstandingRequestTracker,
+} from "./MessagePortPolicies.ts";
 
 class RendererPortClosed extends Schema.TaggedError<RendererPortClosed>()(
   "RendererPortClosed",
@@ -21,6 +29,14 @@ class RendererHandshakeTimedOut extends Schema.TaggedError<RendererHandshakeTime
   {},
 ) {}
 
+class RendererQueueCapacityExceeded extends Schema.TaggedClass<RendererQueueCapacityExceeded>()(
+  "RendererQueueCapacityExceeded",
+  { capacity: Schema.Int },
+) {}
+
+const ConnectionRejection = Schema.Union([FrameRejection, RendererQueueCapacityExceeded]);
+type ConnectionRejection = typeof ConnectionRejection.Type;
+
 const CLIENT_QUEUE_CAPACITY = 64;
 const MAX_OUTSTANDING_REQUESTS = 32;
 const RENDERER_HANDSHAKE_TIMEOUT_MS = 5_000;
@@ -28,7 +44,7 @@ const RENDERER_HANDSHAKE_TIMEOUT_MS = 5_000;
 interface RendererConnection {
   readonly scope: Scope.Closeable;
   readonly port: MessagePortMain;
-  readonly requestIds: Set<string | number>;
+  readonly requests: OutstandingRequestTracker;
 }
 
 const receiveFirstMessage = (port: MessagePortMain) =>
@@ -55,7 +71,7 @@ const receiveFirstMessage = (port: MessagePortMain) =>
 
 export const makeMessagePortServerProtocol = (
   parentPort: ParentPort,
-): Effect.Effect<RpcServer.Protocol["Service"], never, import("effect").Scope.Scope> =>
+): Effect.Effect<RpcServer.Protocol["Service"], never, Scope.Scope> =>
   RpcServer.Protocol.make(
     Effect.fnUntraced(function* (writeRequest) {
       const protocolScope = yield* Scope.Scope;
@@ -72,6 +88,46 @@ export const makeMessagePortServerProtocol = (
           return;
         }
         yield* Scope.close(connection.scope, Exit.void);
+      });
+
+      const rejectConnection = Effect.fnUntraced(function* (
+        clientId: number,
+        reason: ConnectionRejection,
+      ) {
+        yield* Match.value(reason).pipe(
+          Match.tag("InvalidFrame", () =>
+            Effect.logWarning("Closing a renderer that sent an invalid RPC frame.").pipe(
+              Effect.annotateLogs({ clientId, reason: reason._tag }),
+            ),
+          ),
+          Match.tag("UnknownRpc", ({ rpcTag, _tag }) =>
+            Effect.logWarning("Closing a renderer that requested an unknown RPC.").pipe(
+              Effect.annotateLogs({ clientId, reason: _tag, rpcTag }),
+            ),
+          ),
+          Match.tag("InvalidPayload", ({ rpcTag, _tag }) =>
+            Effect.logWarning("Closing a renderer that sent an invalid RPC payload.").pipe(
+              Effect.annotateLogs({ clientId, reason: _tag, rpcTag }),
+            ),
+          ),
+          Match.tag("DuplicateRequestId", ({ _tag }) =>
+            Effect.logWarning("Closing a renderer that reused an active RPC request ID.").pipe(
+              Effect.annotateLogs({ clientId, reason: _tag }),
+            ),
+          ),
+          Match.tag("OutstandingRequestLimitExceeded", ({ limit, _tag }) =>
+            Effect.logWarning(
+              "Closing a renderer that exceeded its outstanding RPC request limit.",
+            ).pipe(Effect.annotateLogs({ clientId, reason: _tag, limit })),
+          ),
+          Match.tag("RendererQueueCapacityExceeded", ({ capacity, _tag }) =>
+            Effect.logWarning("Closing a renderer that exceeded its RPC queue capacity.").pipe(
+              Effect.annotateLogs({ clientId, reason: _tag, capacity }),
+            ),
+          ),
+          Match.exhaustive,
+        );
+        yield* disconnect(clientId);
       });
 
       const attach = Effect.fn("MessagePortServerProtocol.attach")(function* (
@@ -113,102 +169,40 @@ export const makeMessagePortServerProtocol = (
               return;
             }
 
-            const assignedClientId = nextClientId++;
+            const assignedClientId = nextClientId;
+            nextClientId += 1;
             const connectionScope = yield* Scope.fork(connectionsScope);
             const connectionExit = yield* Effect.exit(
               Effect.gen(function* () {
                 const inbox = yield* Queue.bounded<BackendRpcClientFrame>(CLIENT_QUEUE_CAPACITY);
-                const requestIds = new Set<string | number>();
+                const requests = makeOutstandingRequestTracker(MAX_OUTSTANDING_REQUESTS);
                 const connection: RendererConnection = {
                   scope: connectionScope,
                   port,
-                  requestIds,
+                  requests,
                 };
+                let rejecting = false;
 
+                const reject = (reason: FrameRejectionType | RendererQueueCapacityExceeded) => {
+                  if (rejecting) {
+                    return;
+                  }
+                  rejecting = true;
+                  runFork(rejectConnection(assignedClientId, reason));
+                };
                 const onMessage = (event: MessageEvent) => {
-                  const decoded = Schema.decodeUnknownResult(BackendRpcClientFrame)(event.data);
-                  if (Result.isFailure(decoded)) {
-                    runFork(
-                      Effect.logWarning("Closing a renderer that sent an invalid RPC frame.").pipe(
-                        Effect.annotateLogs({
-                          clientId: assignedClientId,
-                          error: decoded.failure.message,
-                        }),
-                        Effect.andThen(disconnect(assignedClientId)),
-                      ),
-                    );
+                  const admission = admitFrame(event.data, requests);
+                  if (Result.isFailure(admission)) {
+                    reject(admission.failure);
                     return;
                   }
 
-                  let message = decoded.success;
-                  if (message._tag === "Request") {
-                    const rpc = BackendRpcs.requests.get(message.tag);
-                    if (rpc === undefined) {
-                      runFork(
-                        Effect.logWarning("Closing a renderer that requested an unknown RPC.").pipe(
-                          Effect.annotateLogs({
-                            clientId: assignedClientId,
-                            tag: message.tag,
-                          }),
-                          Effect.andThen(disconnect(assignedClientId)),
-                        ),
-                      );
-                      return;
+                  const frame = admission.success;
+                  if (!Queue.offerUnsafe(inbox, frame)) {
+                    if (frame._tag === "Request") {
+                      requests.rollback(frame.id);
                     }
-                    const payloadCodec = Schema.toCodecJson(rpc.payloadSchema);
-                    const payload = Result.flatMap(
-                      Schema.decodeUnknownResult(payloadCodec)(message.payload),
-                      Schema.encodeUnknownResult(payloadCodec),
-                    );
-                    if (Result.isFailure(payload)) {
-                      runFork(
-                        Effect.logWarning(
-                          "Closing a renderer that sent an invalid RPC payload.",
-                        ).pipe(
-                          Effect.annotateLogs({
-                            clientId: assignedClientId,
-                            tag: message.tag,
-                            error: payload.failure.message,
-                          }),
-                          Effect.andThen(disconnect(assignedClientId)),
-                        ),
-                      );
-                      return;
-                    }
-                    message = { ...message, payload: payload.success };
-
-                    if (requestIds.size >= MAX_OUTSTANDING_REQUESTS || requestIds.has(message.id)) {
-                      runFork(
-                        Effect.logWarning(
-                          "Closing a renderer that exceeded its outstanding RPC request limit.",
-                        ).pipe(
-                          Effect.annotateLogs({
-                            clientId: assignedClientId,
-                            limit: MAX_OUTSTANDING_REQUESTS,
-                          }),
-                          Effect.andThen(disconnect(assignedClientId)),
-                        ),
-                      );
-                      return;
-                    }
-                    requestIds.add(message.id);
-                  }
-
-                  if (!Queue.offerUnsafe(inbox, message)) {
-                    if (message._tag === "Request") {
-                      requestIds.delete(message.id);
-                    }
-                    runFork(
-                      Effect.logWarning(
-                        "Closing a renderer that exceeded its RPC queue capacity.",
-                      ).pipe(
-                        Effect.annotateLogs({
-                          clientId: assignedClientId,
-                          capacity: CLIENT_QUEUE_CAPACITY,
-                        }),
-                        Effect.andThen(disconnect(assignedClientId)),
-                      ),
-                    );
+                    reject(new RendererQueueCapacityExceeded({ capacity: CLIENT_QUEUE_CAPACITY }));
                   }
                 };
                 const onClose = () => runFork(disconnect(assignedClientId));
@@ -262,11 +256,7 @@ export const makeMessagePortServerProtocol = (
         const attachment = Schema.decodeUnknownResult(AttachRenderer)(event.data);
         if (Result.isFailure(attachment)) {
           port?.close();
-          runFork(
-            Effect.logWarning("Ignoring an invalid renderer attachment.").pipe(
-              Effect.annotateLogs({ error: attachment.failure.message }),
-            ),
-          );
+          runFork(Effect.logWarning("Ignoring an invalid renderer attachment."));
           return;
         }
         if (port === undefined) {
@@ -275,11 +265,7 @@ export const makeMessagePortServerProtocol = (
         }
         runFork(
           attach(port).pipe(
-            Effect.catch((error) =>
-              Effect.logWarning("Ignoring an invalid renderer attachment.").pipe(
-                Effect.annotateLogs({ error: String(error) }),
-              ),
-            ),
+            Effect.catch(() => Effect.logWarning("Ignoring an invalid renderer attachment.")),
           ),
         );
       };
@@ -298,10 +284,10 @@ export const makeMessagePortServerProtocol = (
         send(clientId, response) {
           return Effect.sync(() => {
             const connection = connections.get(clientId);
-            if (connection === undefined) return;
-            if (response._tag === "Exit") {
-              connection.requestIds.delete(response.requestId);
+            if (connection === undefined) {
+              return;
             }
+            connection.requests.observeResponse(response);
             connection.port.postMessage(response);
           });
         },
